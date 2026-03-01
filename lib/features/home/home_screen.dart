@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'providers/home_provider.dart';
 import 'providers/streak_provider.dart';
+import '../../core/audio/audio_service.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -67,6 +68,7 @@ class HomeScreen extends ConsumerWidget {
 
               return InkWell(
                 onTap: () {
+                  ref.read(audioServiceProvider).playClick();
                   context.pushNamed(
                     'category',
                     pathParameters: {'id': category.id},

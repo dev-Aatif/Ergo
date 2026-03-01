@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/storefront_provider.dart';
+import '../../core/audio/audio_service.dart';
 
 class StorefrontScreen extends ConsumerWidget {
   const StorefrontScreen({super.key});
@@ -24,11 +25,11 @@ class StorefrontScreen extends ConsumerWidget {
           )
         ],
       ),
-      body: _buildBody(context, state, notifier),
+      body: _buildBody(context, ref, state, notifier),
     );
   }
 
-  Widget _buildBody(BuildContext context, StorefrontState state,
+  Widget _buildBody(BuildContext context, WidgetRef ref, StorefrontState state,
       StorefrontNotifier notifier) {
     if (state.isLoading && state.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -112,14 +113,21 @@ class StorefrontScreen extends ConsumerWidget {
                       )
                     else
                       ElevatedButton(
-                        onPressed: () => notifier.downloadAndInstall(item),
+                        onPressed: state.isLoading || isDownloaded
+                            ? null
+                            : () {
+                                ref.read(audioServiceProvider).playClick();
+                                ref
+                                    .read(storefrontProvider.notifier)
+                                    .downloadAndInstall(item);
+                              },
                         style: ElevatedButton.styleFrom(
                           shape: const CircleBorder(),
                           padding: const EdgeInsets.all(12),
                           backgroundColor:
                               Theme.of(context).colorScheme.primaryContainer,
                         ),
-                        child: const Icon(Icons.download),
+                        child: Text(isDownloaded ? 'Installed' : 'Download'),
                       ),
                   ],
                 ),

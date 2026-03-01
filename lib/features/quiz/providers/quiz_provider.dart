@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/database/database_service.dart';
 import '../../../core/models/question.dart';
 import '../../../core/models/quiz_attempt.dart';
+import '../../../core/audio/audio_service.dart';
 
 class QuizState {
   final bool isLoading;
@@ -84,6 +85,9 @@ class QuizProviderNotifier
     final List<String> newMissedIds = List.from(currentState.missedQuestionIds);
     if (!isCorrect) {
       newMissedIds.add(currentQuestion.id);
+      ref.read(audioServiceProvider).playIncorrect();
+    } else {
+      ref.read(audioServiceProvider).playCorrect();
     }
 
     if (currentState.currentIndex + 1 >= currentState.questions.length) {
@@ -109,6 +113,16 @@ class QuizProviderNotifier
 
       // Invalidate streak provider to refresh home screen
       // ref.invalidate(streakProvider); // Can be added via another provider dependency if needed
+
+      ref.read(audioServiceProvider).playLevelUp();
+
+      // If it's the first quiz of the day, they just earned a streak
+      if (currentState.score > 0) {
+        // We can optionally use Future.delayed to play streak after level up
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          ref.read(audioServiceProvider).playMagicalStreak();
+        });
+      }
 
       state = AsyncValue.data(currentState.copyWith(
         score: newScore,
