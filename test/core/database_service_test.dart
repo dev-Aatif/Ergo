@@ -191,9 +191,8 @@ void main() {
     expect(results[0]['version'], 2.0);
   });
 
-  test('DLC merge via ATTACH inserts new data and ignores duplicates',
-      () async {
-    // Seed main DB
+  test('DLC merge via INSERT OR IGNORE preserves existing data', () async {
+    // Seed main DB with existing category
     await db.insert('categories', {
       'id': 'cat_main',
       'name': 'Main Cat',
@@ -201,40 +200,18 @@ void main() {
       'icon_name': 'x',
     });
 
-    // Create a temp DLC database
-    final dlcDb = await databaseFactory.openDatabase(inMemoryDatabasePath,
-        options: OpenDatabaseOptions(
-            version: 1,
-            onCreate: (db, v) async {
-              await db.execute('''
-                CREATE TABLE categories (
-                  id TEXT PRIMARY KEY,
-                  name TEXT NOT NULL,
-                  accent_color TEXT NOT NULL,
-                  icon_name TEXT NOT NULL
-                )
-              ''');
-              await db.insert('categories', {
-                'id': 'cat_dlc',
-                'name': 'DLC Cat',
-                'accent_color': '#FFF',
-                'icon_name': 'y',
-              });
-              // Duplicate of main
-              await db.insert('categories', {
-                'id': 'cat_main',
-                'name': 'Should Be Ignored',
-                'accent_color': '#999',
-                'icon_name': 'z',
-              });
-            }));
+    // Simulate the merge logic: INSERT OR IGNORE skips existing IDs
+    await db.execute(
+        "INSERT OR IGNORE INTO categories (id, name, accent_color, icon_name) VALUES ('cat_main', 'Should Be Ignored', '#999', 'z')");
+    await db.execute(
+        "INSERT OR IGNORE INTO categories (id, name, accent_color, icon_name) VALUES ('cat_dlc', 'DLC Cat', '#FFF', 'y')");
 
-    await dlcDb.close();
-
-    // Verify main DB still has original data
-    final cats = await db.query('categories');
-    expect(cats.length, 1);
-    expect(cats[0]['name'], 'Main Cat');
+    final cats = await db.query('categories', orderBy: 'id');
+    expect(cats.length, 2);
+    // Original preserved
+    expect(cats.firstWhere((c) => c['id'] == 'cat_main')['name'], 'Main Cat');
+    // New DLC added
+    expect(cats.firstWhere((c) => c['id'] == 'cat_dlc')['name'], 'DLC Cat');
   });
 
   test('Quiz attempts store and retrieve correctly', () async {

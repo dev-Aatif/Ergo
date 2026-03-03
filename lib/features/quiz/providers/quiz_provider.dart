@@ -164,7 +164,9 @@ class QuizProviderNotifier
     final currentState = state.value;
     if (currentState == null ||
         currentState.isFinished ||
-        currentState.isGameOver) return;
+        currentState.isGameOver) {
+      return;
+    }
 
     final currentQuestion = currentState.questions[currentState.currentIndex];
     bool isCorrect = selectedIndex == currentQuestion.correctIndex;

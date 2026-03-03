@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 Color safeParseColor(String hex, {Color fallback = const Color(0xFF607D8B)}) {
   try {
     final trimmed = hex.trim();
+    if (trimmed.isEmpty) return fallback;
     if (trimmed.startsWith('#')) {
       return Color(int.parse(trimmed.replaceFirst('#', '0xFF')));
     } else if (trimmed.startsWith('0x') || trimmed.startsWith('0X')) {

@@ -94,11 +94,11 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 28),
 
           // ── Developer ──
-          _SectionHeader(title: 'Developer', icon: Icons.code_rounded),
+          const _SectionHeader(title: 'Developer', icon: Icons.code_rounded),
           const SizedBox(height: 8),
           _InfoCard(
             children: [
-              _CardRow(
+              const _CardRow(
                 icon: Icons.person_rounded,
                 label: 'Built by',
                 value: 'Aatif',
@@ -116,7 +116,7 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 20),
 
           // ── Links ──
-          _SectionHeader(title: 'Links', icon: Icons.link_rounded),
+          const _SectionHeader(title: 'Links', icon: Icons.link_rounded),
           const SizedBox(height: 8),
           _InfoCard(
             children: [
@@ -147,7 +147,7 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 20),
 
           // ── Privacy ──
-          _SectionHeader(title: 'Privacy', icon: Icons.shield_rounded),
+          const _SectionHeader(title: 'Privacy', icon: Icons.shield_rounded),
           const SizedBox(height: 8),
           _InfoCard(
             children: [
@@ -191,18 +191,18 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 20),
 
           // ── Tech Stack ──
-          _SectionHeader(title: 'Tech Stack', icon: Icons.layers_rounded),
+          const _SectionHeader(title: 'Tech Stack', icon: Icons.layers_rounded),
           const SizedBox(height: 8),
-          _InfoCard(
+          const _InfoCard(
             children: [
               _StackRow(name: 'Flutter', detail: 'UI Framework'),
-              const Divider(height: 1),
+              Divider(height: 1),
               _StackRow(name: 'Riverpod', detail: 'State Management'),
-              const Divider(height: 1),
+              Divider(height: 1),
               _StackRow(name: 'SQLite (sqflite)', detail: 'Local Database'),
-              const Divider(height: 1),
+              Divider(height: 1),
               _StackRow(name: 'GoRouter', detail: 'Declarative Routing'),
-              const Divider(height: 1),
+              Divider(height: 1),
               _StackRow(
                   name: 'FL Chart + Heatmap', detail: 'Analytics Visuals'),
             ],
@@ -211,7 +211,8 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 20),
 
           // ── Open Source ──
-          _SectionHeader(title: 'Open Source', icon: Icons.favorite_rounded),
+          const _SectionHeader(
+              title: 'Open Source', icon: Icons.favorite_rounded),
           const SizedBox(height: 8),
           _InfoCard(
             children: [

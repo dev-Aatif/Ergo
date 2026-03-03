@@ -53,3 +53,8 @@ flutter_output*.txt
 gradle_output.txt
 gradle_clean.txt
 gradle_clean_stacktrace.txt
+
+# Signing
+android/key.properties
+*.jks
+*.keystore
