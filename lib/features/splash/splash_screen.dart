@@ -47,33 +47,16 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
-      body: Center(
-        child: FadeTransition(
-          opacity: _fadeIn,
-          child: ScaleTransition(
-            scale: _scale,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset(
-                  'assets/images/app-logo.png',
-                  width: 120,
-                  height: 120,
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Ergo',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-              ],
+      backgroundColor: Colors.black,
+      body: FadeTransition(
+        opacity: _fadeIn,
+        child: ScaleTransition(
+          scale: _scale,
+          child: SizedBox.expand(
+            child: Image.asset(
+              'assets/images/home-screen.png',
+              fit: BoxFit.cover,
             ),
           ),
         ),

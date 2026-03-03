@@ -55,21 +55,6 @@ class HomeScreen extends ConsumerWidget {
 
           return CustomScrollView(
             slivers: [
-              // Hero banner with home-screen.png
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: Image.asset(
-                      'assets/images/home-screen.png',
-                      fit: BoxFit.cover,
-                      height: 180,
-                      width: double.infinity,
-                    ),
-                  ),
-                ),
-              ),
               // Category grid
               SliverPadding(
                 padding:
