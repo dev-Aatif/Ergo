@@ -34,4 +34,19 @@ class Question {
       'correct_index': correctIndex,
     };
   }
+
+  /// Returns a new Question with shuffled answer options
+  /// and updated correctIndex to match the new position.
+  Question shuffled() {
+    final correctAnswer = options[correctIndex];
+    final shuffledOptions = List<String>.from(options)..shuffle();
+    final newCorrectIndex = shuffledOptions.indexOf(correctAnswer);
+    return Question(
+      id: id,
+      subjectId: subjectId,
+      text: text,
+      options: shuffledOptions,
+      correctIndex: newCorrectIndex,
+    );
+  }
 }

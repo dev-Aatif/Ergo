@@ -90,13 +90,14 @@ class DatabaseService {
       await db.execute("ATTACH DATABASE '$dlcDbPath' AS dlc");
 
       // Perform the merge inside a transaction for speed and safety
+      // Use explicit column names to avoid schema mismatch if DLC has extra columns
       await db.transaction((txn) async {
         await txn.execute(
-            "INSERT OR IGNORE INTO main.categories SELECT * FROM dlc.categories");
+            "INSERT OR IGNORE INTO main.categories (id, name, accent_color, icon_name) SELECT id, name, accent_color, icon_name FROM dlc.categories");
         await txn.execute(
-            "INSERT OR IGNORE INTO main.subjects SELECT * FROM dlc.subjects");
+            "INSERT OR IGNORE INTO main.subjects (id, category_id, name, description) SELECT id, category_id, name, description FROM dlc.subjects");
         await txn.execute(
-            "INSERT OR IGNORE INTO main.questions SELECT * FROM dlc.questions");
+            "INSERT OR IGNORE INTO main.questions (id, subject_id, text, options, correct_index) SELECT id, subject_id, text, options, correct_index FROM dlc.questions");
       });
     } finally {
       // Always detach safely

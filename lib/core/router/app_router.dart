@@ -6,6 +6,8 @@ import '../../features/category/category_screen.dart';
 import '../../features/quiz/quiz_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/storefront/storefront_screen.dart';
+import '../../features/history/history_screen.dart';
+import '../../features/splash/splash_screen.dart';
 import '../ui/main_layout.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey =
@@ -16,8 +18,13 @@ final GlobalKey<NavigatorState> _shellNavigatorKey =
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/',
+    initialLocation: '/splash',
     routes: [
+      GoRoute(
+        path: '/splash',
+        name: 'splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) {
@@ -38,6 +45,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/storefront',
             name: 'storefront',
             builder: (context, state) => const StorefrontScreen(),
+          ),
+          GoRoute(
+            path: '/history',
+            name: 'history',
+            builder: (context, state) => const HistoryScreen(),
           ),
         ],
       ),

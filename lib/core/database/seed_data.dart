@@ -578,7 +578,7 @@ Future<void> insertSeedData(Database db) async {
       },
     ];
 
-    void insertSet(List<Map<String, Object>> qList, String sId) async {
+    Future<void> insertSet(List<Map<String, Object>> qList, String sId) async {
       for (var q in qList) {
         await txn.insert('questions', {
           'id': uuid.v4(),
@@ -590,8 +590,8 @@ Future<void> insertSeedData(Database db) async {
       }
     }
 
-    insertSet(historyQuestions, subjectId);
-    insertSet(animeQuestions, animeSubId);
-    insertSet(moviesQuestions, moviesSubId);
+    await insertSet(historyQuestions, subjectId);
+    await insertSet(animeQuestions, animeSubId);
+    await insertSet(moviesQuestions, moviesSubId);
   });
 }

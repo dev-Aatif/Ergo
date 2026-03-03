@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/database/database_service.dart';
+import '../../home/providers/home_provider.dart';
 import '../models/catalog_item.dart';
 
 final storefrontProvider =
@@ -77,6 +78,16 @@ class StorefrontNotifier extends StateNotifier<StorefrontState> {
         throw Exception(
             'Failed to load catalog. Status code: ${response.statusCode}');
       }
+    } on SocketException {
+      state = state.copyWith(
+        isLoading: false,
+        error: "You're offline. Connect to the internet to browse the store.",
+      );
+    } on http.ClientException {
+      state = state.copyWith(
+        isLoading: false,
+        error: "You're offline. Connect to the internet to browse the store.",
+      );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -122,14 +133,38 @@ class StorefrontNotifier extends StateNotifier<StorefrontState> {
         await tempFile.delete();
       }
 
-      // Finish
+      // Finish — rebuild downloaded state from actual DB
       final prog = Map<String, double>.from(state.downloadProgress);
       prog.remove(item.id);
-      final downloaded = Set<String>.from(state.downloadedItems);
-      downloaded.add(item.id);
 
-      state =
-          state.copyWith(downloadProgress: prog, downloadedItems: downloaded);
+      // Re-read subjects from DB so the "installed" check is accurate
+      final subjectMaps = await dbService.db.query('subjects');
+      final freshDownloadedIds =
+          subjectMaps.map((m) => m['id'] as String).toSet();
+      // Also keep the catalog item.id so the storefront button shows the checkmark
+      freshDownloadedIds.add(item.id);
+
+      state = state.copyWith(
+        downloadProgress: prog,
+        downloadedItems: freshDownloadedIds,
+      );
+
+      // Force the home screen to reload categories from DB
+      ref.invalidate(categoriesProvider);
+    } on SocketException {
+      final prog = Map<String, double>.from(state.downloadProgress);
+      prog.remove(item.id);
+      state = state.copyWith(
+        error: "You're offline. Connect to the internet to download.",
+        downloadProgress: prog,
+      );
+    } on http.ClientException {
+      final prog = Map<String, double>.from(state.downloadProgress);
+      prog.remove(item.id);
+      state = state.copyWith(
+        error: "You're offline. Connect to the internet to download.",
+        downloadProgress: prog,
+      );
     } catch (e) {
       final prog = Map<String, double>.from(state.downloadProgress);
       prog.remove(item.id);

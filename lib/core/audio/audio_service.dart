@@ -6,32 +6,51 @@ final audioServiceProvider = Provider<AudioService>((ref) {
 });
 
 class AudioService {
-  final AudioPlayer _player = AudioPlayer();
+  late final AudioPlayer _correctPlayer;
+  late final AudioPlayer _incorrectPlayer;
+  late final AudioPlayer _fanfarePlayer;
+  late final AudioPlayer _clickPlayer;
+  late final AudioPlayer _streakPlayer;
 
-  // We play the audio in "Low Latency" mode by default,
-  // which works well for short sound effects.
-
-  Future<void> playCorrect() async {
-    await _player.play(AssetSource('audio/correct-answer.mp3'));
+  AudioService() {
+    _initPlayers();
   }
 
-  Future<void> playIncorrect() async {
-    await _player.play(AssetSource('audio/wrong-answer.mp3'));
+  void _initPlayers() {
+    _correctPlayer = AudioPlayer(playerId: 'correct')
+      ..setReleaseMode(ReleaseMode.stop);
+    _incorrectPlayer = AudioPlayer(playerId: 'incorrect')
+      ..setReleaseMode(ReleaseMode.stop);
+    _fanfarePlayer = AudioPlayer(playerId: 'fanfare')
+      ..setReleaseMode(ReleaseMode.stop);
+    _clickPlayer = AudioPlayer(playerId: 'click')
+      ..setReleaseMode(ReleaseMode.stop);
+    _streakPlayer = AudioPlayer(playerId: 'streak')
+      ..setReleaseMode(ReleaseMode.stop);
+
+    // Preload sources for instant playback
+    _correctPlayer.setSource(AssetSource('audio/correct-answer.mp3'));
+    _incorrectPlayer.setSource(AssetSource('audio/wrong-answer.mp3'));
+    _fanfarePlayer.setSource(AssetSource('audio/level-up.mp3'));
+    _clickPlayer.setSource(AssetSource('audio/click.mp3'));
+    _streakPlayer.setSource(AssetSource('audio/magical-streak.mp3'));
   }
 
-  Future<void> playLevelUp() async {
-    await _player.play(AssetSource('audio/level-up.mp3'));
+  Future<void> _playFromStart(AudioPlayer player) async {
+    try {
+      await player.seek(Duration.zero).timeout(
+            const Duration(milliseconds: 500),
+            onTimeout: () {}, // Silently ignore if seek times out
+          );
+      await player.resume();
+    } catch (_) {
+      // Silently ignore audio errors — never block the UI
+    }
   }
 
-  Future<void> playFanfare() async {
-    await _player.play(AssetSource('audio/fanfare.mp3'));
-  }
-
-  Future<void> playMagicalStreak() async {
-    await _player.play(AssetSource('audio/magical-streak.mp3'));
-  }
-
-  Future<void> playClick() async {
-    await _player.play(AssetSource('audio/click.mp3'));
-  }
+  Future<void> playCorrect() async => _playFromStart(_correctPlayer);
+  Future<void> playIncorrect() async => _playFromStart(_incorrectPlayer);
+  Future<void> playLevelUp() async => _playFromStart(_fanfarePlayer);
+  Future<void> playMagicalStreak() async => _playFromStart(_streakPlayer);
+  Future<void> playClick() async => _playFromStart(_clickPlayer);
 }

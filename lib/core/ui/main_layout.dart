@@ -14,8 +14,11 @@ class MainLayout extends StatelessWidget {
     if (location.startsWith('/storefront')) {
       return 1;
     }
-    if (location.startsWith('/settings')) {
+    if (location.startsWith('/history')) {
       return 2;
+    }
+    if (location.startsWith('/settings')) {
+      return 3;
     }
     return 0; // Default to Home
   }
@@ -29,6 +32,9 @@ class MainLayout extends StatelessWidget {
         context.goNamed('storefront');
         break;
       case 2:
+        context.goNamed('history');
+        break;
+      case 3:
         context.goNamed('settings');
         break;
     }
@@ -53,6 +59,11 @@ class MainLayout extends StatelessWidget {
             icon: Icon(Icons.storefront_outlined),
             selectedIcon: Icon(Icons.storefront),
             label: 'Store',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.query_stats_outlined),
+            selectedIcon: Icon(Icons.query_stats),
+            label: 'Analytics',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
