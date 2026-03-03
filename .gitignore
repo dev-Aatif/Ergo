@@ -47,5 +47,9 @@ app.*.map.json
 # Scripts
 Scripts/
 
-#logs and txt files
-*.txt
+# Build logs
+build_log.txt
+flutter_output*.txt
+gradle_output.txt
+gradle_clean.txt
+gradle_clean_stacktrace.txt

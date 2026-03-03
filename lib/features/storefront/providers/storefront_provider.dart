@@ -17,8 +17,7 @@ class StorefrontState {
   final bool isLoading;
   final List<CatalogItem> items;
   final String? error;
-  final Map<String, double>
-      downloadProgress; // key: itemId, value: progress 0.0 to 1.0
+  final Map<String, double> downloadProgress;
   final Set<String> downloadedItems;
 
   StorefrontState({
@@ -48,8 +47,6 @@ class StorefrontState {
 
 class StorefrontNotifier extends StateNotifier<StorefrontState> {
   final Ref ref;
-  // Use a mocked URL or raw GitHub for MVP.
-  // For safety, we will mock the fetch logic if URL is not defined, or we can use a dummy JSON.
   static const String catalogUrl =
       'https://raw.githubusercontent.com/dev-Aatif/ergo-db/main/catalog.json';
 
@@ -59,8 +56,9 @@ class StorefrontNotifier extends StateNotifier<StorefrontState> {
 
   Future<void> _initDownloadedItems() async {
     final dbService = ref.read(databaseServiceProvider);
-    final subjectMaps = await dbService.db.query('subjects');
-    final downloadedIds = subjectMaps.map((m) => m['id'] as String).toSet();
+
+    // Use the installed_dlc table for reliable tracking
+    final downloadedIds = await dbService.getInstalledDlcIds();
     state = state.copyWith(downloadedItems: downloadedIds);
     fetchCatalog();
   }
@@ -104,7 +102,6 @@ class StorefrontNotifier extends StateNotifier<StorefrontState> {
     state = state.copyWith(downloadProgress: updatedProgress);
 
     try {
-      // Simulate fake fast download progress for UI (since files are tiny, we won't stream bytes for now)
       final prog1 = Map<String, double>.from(state.downloadProgress);
       prog1[item.id] = 0.3;
       state = state.copyWith(downloadProgress: prog1);
@@ -128,21 +125,19 @@ class StorefrontNotifier extends StateNotifier<StorefrontState> {
       final dbService = ref.read(databaseServiceProvider);
       await dbService.mergeDlcDatabase(tempFile.path);
 
-      // 4. Clean up temp file
+      // 4. Track the installed DLC
+      await dbService.markDlcInstalled(item.id, item.version);
+
+      // 5. Clean up temp file
       if (await tempFile.exists()) {
         await tempFile.delete();
       }
 
-      // Finish — rebuild downloaded state from actual DB
+      // Finish — rebuild downloaded state from installed_dlc table
       final prog = Map<String, double>.from(state.downloadProgress);
       prog.remove(item.id);
 
-      // Re-read subjects from DB so the "installed" check is accurate
-      final subjectMaps = await dbService.db.query('subjects');
-      final freshDownloadedIds =
-          subjectMaps.map((m) => m['id'] as String).toSet();
-      // Also keep the catalog item.id so the storefront button shows the checkmark
-      freshDownloadedIds.add(item.id);
+      final freshDownloadedIds = await dbService.getInstalledDlcIds();
 
       state = state.copyWith(
         downloadProgress: prog,

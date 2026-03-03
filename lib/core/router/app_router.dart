@@ -8,6 +8,7 @@ import '../../features/settings/settings_screen.dart';
 import '../../features/storefront/storefront_screen.dart';
 import '../../features/history/history_screen.dart';
 import '../../features/splash/splash_screen.dart';
+import '../../features/settings/about_screen.dart';
 import '../ui/main_layout.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey =
@@ -82,6 +83,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             colorHex: colorHex,
           );
         },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/about',
+        name: 'about',
+        builder: (context, state) => const AboutScreen(),
       ),
     ],
   );

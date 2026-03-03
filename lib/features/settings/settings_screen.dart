@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'providers/analytics_provider.dart';
-// Note: Actual export/import requires a package like file_picker or share_plus in a real app,
-// but for the MVP architecture, we demonstrate the scaffolding.
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final analyticsAsync = ref.watch(analyticsProvider);
+    final analytics = ref.watch(analyticsProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -20,91 +20,219 @@ class SettingsScreen extends ConsumerWidget {
         scrolledUnderElevation: 0,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
-          const Text(
-            'Your Progress',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          // ── Stats Section ──
+          Text(
+            'YOUR PROGRESS',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+            ),
           ),
-          const SizedBox(height: 16),
-          analyticsAsync.when(
-            data: (data) => Card(
-              elevation: 0,
-              color:
-                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              child: Padding(
+          const SizedBox(height: 12),
+          analytics.when(
+            data: (data) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color:
+                        theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+                  ),
+                ),
                 padding: const EdgeInsets.all(20),
-                child: Column(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildStatRow('Total Quizzes', '${data.totalQuizzes}',
-                        Icons.library_books),
-                    const Divider(height: 32),
-                    _buildStatRow(
-                        'Average Accuracy',
-                        '${data.averageAccuracy.toStringAsFixed(1)}%',
-                        Icons.track_changes),
-                    const Divider(height: 32),
-                    _buildStatRow(
-                        'Time Spent',
-                        _formatDuration(data.totalTimeSpentSeconds),
-                        Icons.timer),
+                    _StatTile(
+                      value: '${data.totalQuizzes}',
+                      label: 'Quizzes',
+                      icon: Icons.quiz_rounded,
+                      color: Colors.blue,
+                    ),
+                    _StatTile(
+                      value: '${data.averageAccuracy.toStringAsFixed(1)}%',
+                      label: 'Accuracy',
+                      icon: Icons.gps_fixed_rounded,
+                      color: Colors.green,
+                    ),
+                    _StatTile(
+                      value: '${(data.totalTimeSpentSeconds / 60).round()}m',
+                      label: 'Time',
+                      icon: Icons.timer_rounded,
+                      color: Colors.orange,
+                    ),
                   ],
                 ),
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Text('Error: $e'),
+          ),
+
+          const SizedBox(height: 28),
+
+          // ── Data Section ──
+          Text(
+            'DATA',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
               ),
             ),
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Text('Error loading stats: $e'),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(Icons.upload_rounded,
+                      color: theme.colorScheme.onSurfaceVariant),
+                  title: const Text('Export Data'),
+                  subtitle: Text('Coming Soon',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.6))),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Export will be available in a future update.'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                ),
+                Divider(
+                    height: 1,
+                    color: theme.colorScheme.outlineVariant
+                        .withValues(alpha: 0.3)),
+                ListTile(
+                  leading: Icon(Icons.download_rounded,
+                      color: theme.colorScheme.onSurfaceVariant),
+                  title: const Text('Import Data'),
+                  subtitle: Text('Coming Soon',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.6))),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Import will be available in a future update.'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 32),
-          const Text(
-            'Data Management',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+
+          const SizedBox(height: 28),
+
+          // ── About Section ──
+          Text(
+            'APP',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+            ),
           ),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(Icons.info_outline_rounded,
+                      color: theme.colorScheme.primary),
+                  title: const Text('About & Credits'),
+                  subtitle: Text('Privacy, Tech Stack, Links',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurfaceVariant)),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push('/about'),
+                ),
+              ],
+            ),
+          ),
+
           const SizedBox(height: 16),
-          ListTile(
-            leading: const Icon(Icons.download),
-            title: const Text('Export Progress (Backup)'),
-            subtitle: const Text('Save your stats to a file.'),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('Exporting db... (Mocked for MVP)')));
-            },
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.upload),
-            title: const Text('Import Progress'),
-            subtitle: const Text('Restore from a previous backup.'),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('Importing db... (Mocked for MVP)')));
-            },
-          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildStatRow(String label, String value, IconData icon) {
-    return Row(
+class _StatTile extends StatelessWidget {
+  final String value;
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const _StatTile({
+    required this.value,
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
       children: [
-        Icon(icon, size: 28, color: Colors.blueGrey),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Text(label, style: const TextStyle(fontSize: 18)),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 22),
         ),
-        Text(value,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
       ],
     );
-  }
-
-  String _formatDuration(int totalSeconds) {
-    if (totalSeconds < 60) return '${totalSeconds}s';
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-    return '${minutes}m ${seconds}s';
   }
 }

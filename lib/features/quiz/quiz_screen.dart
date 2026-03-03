@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:confetti/confetti.dart';
 import 'dart:math';
 import 'providers/quiz_provider.dart';
+import '../../core/utils.dart';
 
 class QuizScreen extends ConsumerStatefulWidget {
   final String subjectId;
@@ -54,6 +55,38 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
         ref.read(quizProvider(widget.subjectId).notifier).timeOut();
       }
     });
+  }
+
+  Future<bool> _onWillPop() async {
+    final quizState = ref.read(quizProvider(widget.subjectId)).valueOrNull;
+    if (quizState == null || quizState.isFinished || !_configDone) {
+      return true;
+    }
+
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Quit Quiz?'),
+        content: const Text('Your progress will be saved.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Continue'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Quit'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLeave == true) {
+      _timer?.cancel();
+      ref.read(quizProvider(widget.subjectId).notifier).endQuizEarly();
+    }
+
+    return shouldLeave ?? false;
   }
 
   void _showConfigSheet(BuildContext context, Color color, int totalQuestions) {
@@ -240,226 +273,242 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
   @override
   Widget build(BuildContext context) {
     final quizStateAsync = ref.watch(quizProvider(widget.subjectId));
-    final color = Color(int.parse(widget.colorHex.replaceFirst('#', '0xFF')));
+    final color = safeParseColor(widget.colorHex);
 
-    return Scaffold(
-      appBar: AppBar(
-        title:
-            const Text('Quiz', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        iconTheme: IconThemeData(color: color),
-        actions: [
-          if (_configDone)
-            TextButton(
-              onPressed: () {
-                _timer?.cancel();
-                ref
-                    .read(quizProvider(widget.subjectId).notifier)
-                    .endQuizEarly();
-              },
-              child: Text('Quit',
-                  style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-            ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          quizStateAsync.when(
-            data: (quizState) {
-              // Show config sheet on first load
-              if (!_configDone && quizState.questions.isNotEmpty) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!_configDone) {
-                    _showConfigSheet(
-                        context, color, quizState.questions.length);
-                  }
-                });
-                return Center(child: CircularProgressIndicator(color: color));
-              }
-
-              if (quizState.questions.isEmpty) {
-                return const Center(
-                    child: Text('No questions available for this subject.'));
-              }
-
-              if (quizState.isFinished) {
-                _timer?.cancel();
-                final accuracy =
-                    (quizState.score / quizState.questions.length) * 100;
-                if (accuracy >= 60 &&
-                    !_hasPlayedConfetti &&
-                    !quizState.isGameOver) {
-                  _hasPlayedConfetti = true;
-                  _confettiController.play();
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldPop = await _onWillPop();
+        if (shouldPop && context.mounted) {
+          context.pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title:
+              const Text('Quiz', style: TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          iconTheme: IconThemeData(color: color),
+          actions: [
+            if (_configDone)
+              TextButton(
+                onPressed: () {
+                  _timer?.cancel();
+                  ref
+                      .read(quizProvider(widget.subjectId).notifier)
+                      .endQuizEarly();
+                },
+                child: Text('Quit',
+                    style:
+                        TextStyle(color: color, fontWeight: FontWeight.w600)),
+              ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            quizStateAsync.when(
+              data: (quizState) {
+                // Show config sheet on first load
+                if (!_configDone && quizState.questions.isNotEmpty) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!_configDone) {
+                      _showConfigSheet(
+                          context, color, quizState.questions.length);
+                    }
+                  });
+                  return Center(child: CircularProgressIndicator(color: color));
                 }
-                return _buildResultScreen(context, ref, quizState, color);
-              }
 
-              // Start timer for timed modes
-              final timePerQ = quizState.config.timePerQuestion;
-              if (timePerQ > 0 && _timeLeft <= 0) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _startTimer(timePerQ);
-                });
-              }
+                if (quizState.questions.isEmpty) {
+                  return const Center(
+                      child: Text('No questions available for this subject.'));
+                }
 
-              final currentQuestion =
-                  quizState.questions[quizState.currentIndex];
+                if (quizState.isFinished) {
+                  _timer?.cancel();
+                  final accuracy =
+                      (quizState.score / quizState.questions.length) * 100;
+                  if (accuracy >= 60 &&
+                      !_hasPlayedConfetti &&
+                      !quizState.isGameOver) {
+                    _hasPlayedConfetti = true;
+                    _confettiController.play();
+                  }
+                  return _buildResultScreen(context, ref, quizState, color);
+                }
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 24.0, vertical: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Top bar: question counter + lives
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Question ${quizState.currentIndex + 1} of ${quizState.questions.length}',
-                          style: TextStyle(
-                              fontSize: 16,
-                              color: color.withValues(alpha: 0.8),
-                              fontWeight: FontWeight.w700),
-                        ),
-                        if (quizState.config.difficulty == Difficulty.almostHim)
-                          Row(
-                            children:
-                                List.generate(quizState.config.maxLives, (i) {
-                              return Padding(
-                                padding: const EdgeInsets.only(left: 2),
-                                child: Icon(
-                                  i < quizState.livesRemaining
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                  color: Colors.red,
-                                  size: 20,
-                                ),
-                              );
-                            }),
+                // Start timer for timed modes (guard: only if not finished)
+                final timePerQ = quizState.config.timePerQuestion;
+                if (timePerQ > 0 && _timeLeft <= 0 && !quizState.isFinished) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!quizState.isFinished) {
+                      _startTimer(timePerQ);
+                    }
+                  });
+                }
+
+                final currentQuestion =
+                    quizState.questions[quizState.currentIndex];
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24.0, vertical: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Top bar: question counter + lives
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Question ${quizState.currentIndex + 1} of ${quizState.questions.length}',
+                            style: TextStyle(
+                                fontSize: 16,
+                                color: color.withValues(alpha: 0.8),
+                                fontWeight: FontWeight.w700),
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Progress bar
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: (quizState.currentIndex + 1) /
-                            quizState.questions.length,
-                        minHeight: 8,
-                        color: color,
-                        backgroundColor: color.withValues(alpha: 0.15),
+                          if (quizState.config.difficulty !=
+                              Difficulty.plotArmor)
+                            Row(
+                              children:
+                                  List.generate(quizState.config.maxLives, (i) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(left: 2),
+                                  child: Icon(
+                                    i < quizState.livesRemaining
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: Colors.red,
+                                    size: 20,
+                                  ),
+                                );
+                              }),
+                            ),
+                        ],
                       ),
-                    ),
+                      const SizedBox(height: 12),
 
-                    // Timer bar
-                    if (timePerQ > 0) ...[
-                      const SizedBox(height: 8),
+                      // Progress bar
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: LinearProgressIndicator(
-                          value: _timeLeft / timePerQ,
-                          minHeight: 6,
-                          color: _timeLeft <= 3 ? Colors.red : Colors.amber,
-                          backgroundColor: Colors.amber.withValues(alpha: 0.15),
+                          value: (quizState.currentIndex + 1) /
+                              quizState.questions.length,
+                          minHeight: 8,
+                          color: color,
+                          backgroundColor: color.withValues(alpha: 0.15),
                         ),
                       ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            '${_timeLeft}s',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: _timeLeft <= 3 ? Colors.red : Colors.amber,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
 
-                    const SizedBox(height: 32),
-                    Text(
-                      currentQuestion.text,
-                      style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          height: 1.3),
-                    ),
-                    const SizedBox(height: 40),
-                    ...List.generate(currentQuestion.options.length, (index) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16.0),
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 20, horizontal: 24),
+                      // Timer bar
+                      if (timePerQ > 0) ...[
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: _timeLeft / timePerQ,
+                            minHeight: 6,
+                            color: _timeLeft <= 3 ? Colors.red : Colors.amber,
                             backgroundColor:
-                                Theme.of(context).colorScheme.surface,
-                            foregroundColor:
-                                Theme.of(context).colorScheme.onSurface,
-                            elevation: 0,
-                            alignment: Alignment.centerLeft,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              side: BorderSide(
-                                  color: color.withValues(alpha: 0.3),
-                                  width: 1.5),
-                            ),
-                          ),
-                          onPressed: () {
-                            _timer?.cancel();
-                            ref
-                                .read(quizProvider(widget.subjectId).notifier)
-                                .answerQuestion(index);
-                            // Restart timer for next question
-                            if (timePerQ > 0) {
-                              _startTimer(timePerQ);
-                            }
-                          },
-                          child: Text(
-                            currentQuestion.options[index],
-                            style: const TextStyle(fontSize: 18),
+                                Colors.amber.withValues(alpha: 0.15),
                           ),
                         ),
-                      );
-                    }),
-                  ],
-                ),
-              );
-            },
-            loading: () =>
-                Center(child: CircularProgressIndicator(color: color)),
-            error: (error, stack) => Center(child: Text('Error: $error')),
-          ),
-          Align(
-            alignment: Alignment.topCenter,
-            child: ConfettiWidget(
-              confettiController: _confettiController,
-              blastDirection: pi / 2,
-              maxBlastForce: 5,
-              minBlastForce: 1,
-              emissionFrequency: 0.05,
-              numberOfParticles: 20,
-              gravity: 0.1,
-              colors: const [
-                Colors.green,
-                Colors.blue,
-                Colors.pink,
-                Colors.orange,
-                Colors.purple
-              ],
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              '${_timeLeft}s',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color:
+                                    _timeLeft <= 3 ? Colors.red : Colors.amber,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 32),
+                      Text(
+                        currentQuestion.text,
+                        style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            height: 1.3),
+                      ),
+                      const SizedBox(height: 40),
+                      ...List.generate(currentQuestion.options.length, (index) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16.0),
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 20, horizontal: 24),
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.surface,
+                              foregroundColor:
+                                  Theme.of(context).colorScheme.onSurface,
+                              elevation: 0,
+                              alignment: Alignment.centerLeft,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                side: BorderSide(
+                                    color: color.withValues(alpha: 0.3),
+                                    width: 1.5),
+                              ),
+                            ),
+                            onPressed: () {
+                              _timer?.cancel();
+                              ref
+                                  .read(quizProvider(widget.subjectId).notifier)
+                                  .answerQuestion(index);
+                              // Restart timer for next question
+                              if (timePerQ > 0) {
+                                _startTimer(timePerQ);
+                              }
+                            },
+                            child: Text(
+                              currentQuestion.options[index],
+                              style: const TextStyle(fontSize: 18),
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                );
+              },
+              loading: () =>
+                  Center(child: CircularProgressIndicator(color: color)),
+              error: (error, stack) => Center(child: Text('Error: $error')),
             ),
-          ),
-        ],
+            Align(
+              alignment: Alignment.topCenter,
+              child: ConfettiWidget(
+                confettiController: _confettiController,
+                blastDirection: pi / 2,
+                maxBlastForce: 5,
+                minBlastForce: 1,
+                emissionFrequency: 0.05,
+                numberOfParticles: 20,
+                gravity: 0.1,
+                colors: const [
+                  Colors.green,
+                  Colors.blue,
+                  Colors.pink,
+                  Colors.orange,
+                  Colors.purple
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -521,7 +570,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
               const SizedBox(height: 12),
             ],
             TextButton(
-              onPressed: () => context.pop(),
+              onPressed: () => context.go('/'),
               child: const Text('Back to Home', style: TextStyle(fontSize: 18)),
             ),
           ],

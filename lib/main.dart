@@ -7,6 +7,12 @@ import 'core/database/database_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Global error handler
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('FlutterError: ${details.exceptionAsString()}');
+  };
+
   // Initialize SQLite
   final dbService = DatabaseService();
   await dbService.init();
@@ -32,7 +38,7 @@ class ErgoApp extends ConsumerWidget {
       title: 'Ergo',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6200EE), // A deep, modern purple accent
+          seedColor: const Color(0xFF6200EE),
           brightness: Brightness.light,
           surface: const Color(0xFFF8F9FA),
           onSurface: const Color(0xFF202124),
@@ -49,7 +55,7 @@ class ErgoApp extends ConsumerWidget {
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: Colors.black.withOpacity(0.05)),
+            side: BorderSide(color: Colors.black.withValues(alpha: 0.05)),
           ),
         ),
       ),
@@ -77,7 +83,7 @@ class ErgoApp extends ConsumerWidget {
           color: const Color(0xFF1E1E1E),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: Colors.white.withOpacity(0.05)),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
           ),
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/storefront_provider.dart';
 import '../../core/audio/audio_service.dart';
+import '../../core/utils.dart';
 import 'models/catalog_item.dart';
 
 class StorefrontScreen extends ConsumerWidget {
@@ -34,7 +35,6 @@ class StorefrontScreen extends ConsumerWidget {
 
   Widget _buildBody(BuildContext context, WidgetRef ref, StorefrontState state,
       StorefrontNotifier notifier, ThemeData theme) {
-    // Error banner at the top if there's an error but we still have items
     Widget? errorBanner;
     if (state.error != null) {
       errorBanner = Container(
@@ -169,8 +169,7 @@ class _StoreCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accentColor =
-        Color(int.parse(item.colorHex.replaceFirst('#', '0xFF')));
+    final accentColor = safeParseColor(item.colorHex);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -194,7 +193,6 @@ class _StoreCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            // Category color accent icon
             Container(
               width: 48,
               height: 48,
@@ -203,14 +201,12 @@ class _StoreCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
-                _getIconForCategory(item.categoryName),
+                getIconForName(item.iconUrl),
                 color: accentColor,
                 size: 24,
               ),
             ),
             const SizedBox(width: 14),
-
-            // Pack info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,8 +244,6 @@ class _StoreCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-
-            // Action button
             _buildAction(context, accentColor),
           ],
         ),
@@ -258,8 +252,6 @@ class _StoreCard extends StatelessWidget {
   }
 
   Widget _buildAction(BuildContext context, Color accentColor) {
-    final theme = Theme.of(context);
-
     if (isDownloaded) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -299,7 +291,7 @@ class _StoreCard extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onSurface)),
+                    color: Theme.of(context).colorScheme.onSurface)),
           ],
         ),
       );
@@ -323,23 +315,6 @@ class _StoreCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  IconData _getIconForCategory(String name) {
-    switch (name.toLowerCase()) {
-      case 'history':
-        return Icons.auto_stories_rounded;
-      case 'anime':
-        return Icons.movie_filter_rounded;
-      case 'movies':
-        return Icons.theaters_rounded;
-      case 'science':
-        return Icons.science_rounded;
-      case 'sports':
-        return Icons.sports_cricket_rounded;
-      default:
-        return Icons.menu_book_rounded;
-    }
   }
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'providers/category_provider.dart';
+import '../../core/utils.dart';
 
 class CategoryScreen extends ConsumerWidget {
   final String categoryId;
@@ -16,7 +17,7 @@ class CategoryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final subjectsAsync = ref.watch(subjectsProvider(categoryId));
-    final color = Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
+    final color = safeParseColor(colorHex);
 
     return Scaffold(
       appBar: AppBar(
@@ -42,10 +43,11 @@ class CategoryScreen extends ConsumerWidget {
               final subject = subjects[index];
               return Card(
                 elevation: 0,
-                color: color.withOpacity(0.05),
+                color: color.withValues(alpha: 0.05),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: color.withOpacity(0.1), width: 1),
+                  side:
+                      BorderSide(color: color.withValues(alpha: 0.1), width: 1),
                 ),
                 child: ListTile(
                   contentPadding:
@@ -53,10 +55,26 @@ class CategoryScreen extends ConsumerWidget {
                   title: Text(subject.name,
                       style: const TextStyle(
                           fontSize: 18, fontWeight: FontWeight.w600)),
+                  subtitle: subject.description.isNotEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            subject.description,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        )
+                      : null,
                   trailing: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.15),
+                      color: color.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(Icons.play_arrow_rounded, color: color),

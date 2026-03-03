@@ -1,11 +1,7 @@
 allprojects {
     repositories {
-        mavenCentral()
         google()
-        maven { url = uri("https://maven.aliyun.com/repository/google") }
-        maven { url = uri("https://maven.aliyun.com/repository/jcenter") }
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
-        maven { url = uri("https://mirrors.tencent.com/nexus/repository/maven-public/") }
+        mavenCentral()
         maven { url = uri("https://jitpack.io") }
     }
 }

@@ -30,7 +30,7 @@ class QuizConfig {
 
   const QuizConfig({
     this.questionLimit,
-    this.difficulty = Difficulty.canonEvent,
+    this.difficulty = Difficulty.plotArmor,
     this.speed = Speed.snail,
   });
 
@@ -182,9 +182,9 @@ class QuizProviderNotifier
       }
     }
 
-    // Check if game over (lives depleted in Almost Him mode)
+    // Check if game over (lives depleted in Almost Him or Canon Event mode)
     if (newLives == 0 &&
-        currentState.config.difficulty == Difficulty.almostHim) {
+        currentState.config.difficulty != Difficulty.plotArmor) {
       ref.read(audioServiceProvider).playIncorrect();
       await _saveAttempt(currentState, newScore, newMissedIds);
       state = AsyncValue.data(currentState.copyWith(

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'providers/home_provider.dart';
 import 'providers/streak_provider.dart';
 import '../../core/audio/audio_service.dart';
+import '../../core/utils.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -52,94 +53,109 @@ class HomeScreen extends ConsumerWidget {
             );
           }
 
-          return GridView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.9,
-            ),
-            itemCount: categories.length,
-            itemBuilder: (context, index) {
-              final category = categories[index];
-              final color = Color(
-                  int.parse(category.accentColor.replaceFirst('#', '0xFF')));
-
-              return InkWell(
-                onTap: () {
-                  ref.read(audioServiceProvider).playClick();
-                  context.pushNamed(
-                    'category',
-                    pathParameters: {'id': category.id},
-                    extra: {'color': category.accentColor},
-                  );
-                },
-                borderRadius: BorderRadius.circular(24),
-                child: Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    side: BorderSide(color: color.withOpacity(0.1), width: 1.5),
-                  ),
-                  color: color.withOpacity(0.05),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          _getIconForCategory(category.name),
-                          size: 38,
-                          color: color,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        category.name,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Tap to review',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: color.withOpacity(0.8),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+          return CustomScrollView(
+            slivers: [
+              // Hero banner with home-screen.png
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'assets/images/home-screen.png',
+                      fit: BoxFit.cover,
+                      height: 180,
+                      width: double.infinity,
+                    ),
                   ),
                 ),
-              );
-            },
+              ),
+              // Category grid
+              SliverPadding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.9,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final category = categories[index];
+                      final color = safeParseColor(category.accentColor);
+
+                      return InkWell(
+                        onTap: () {
+                          ref.read(audioServiceProvider).playClick();
+                          context.pushNamed(
+                            'category',
+                            pathParameters: {'id': category.id},
+                            extra: {'color': category.accentColor},
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(24),
+                        child: Card(
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            side: BorderSide(
+                                color: color.withValues(alpha: 0.1),
+                                width: 1.5),
+                          ),
+                          color: color.withValues(alpha: 0.05),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(18),
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: 0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  getIconForName(category.iconName),
+                                  size: 38,
+                                  color: color,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                category.name,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Tap to review',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: color.withValues(alpha: 0.8),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                    childCount: categories.length,
+                  ),
+                ),
+              ),
+              const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+            ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stack) => Center(child: Text('Error: $error')),
       ),
     );
-  }
-
-  IconData _getIconForCategory(String name) {
-    switch (name.toLowerCase()) {
-      case 'history':
-        return Icons.auto_stories_rounded;
-      case 'anime':
-        return Icons.movie_filter_rounded;
-      case 'movies':
-        return Icons.theaters_rounded;
-      default:
-        return Icons.menu_book_rounded;
-    }
   }
 }

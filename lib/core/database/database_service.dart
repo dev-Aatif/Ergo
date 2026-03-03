@@ -9,10 +9,10 @@ final databaseServiceProvider = Provider<DatabaseService>((ref) {
 });
 
 class DatabaseService {
-  static Database? _db;
+  Database? _db;
 
   static const String _dbName = 'ergo_main.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   Database get db {
     if (_db == null) throw Exception("Database not initialized");
@@ -25,13 +25,17 @@ class DatabaseService {
     final documentsDirectory = await getApplicationDocumentsDirectory();
     final path = join(documentsDirectory.path, _dbName);
 
-    // For MVP seed data: If the DB doesn't exist, we can potentially copy a pre-populated DB from assets.
-    // Right now, we create empty tables.
     _db = await openDatabase(
       path,
       version: _dbVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  /// For testing: allows injecting an in-memory database
+  void setDatabase(Database database) {
+    _db = database;
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -49,7 +53,7 @@ class DatabaseService {
         id TEXT PRIMARY KEY,
         category_id TEXT NOT NULL,
         name TEXT NOT NULL,
-        description TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
         FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE
       )
     ''');
@@ -78,19 +82,45 @@ class DatabaseService {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE installed_dlc (
+        catalog_id TEXT PRIMARY KEY,
+        version REAL NOT NULL DEFAULT 1.0,
+        installed_at INTEGER NOT NULL
+      )
+    ''');
+
     // Hydrate the database with seed data
     await insertSeedData(db);
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Migration v1 → v2: add installed_dlc table
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS installed_dlc (
+          catalog_id TEXT PRIMARY KEY,
+          version REAL NOT NULL DEFAULT 1.0,
+          installed_at INTEGER NOT NULL
+        )
+      ''');
+      // Migration v1 → v2: add description column to subjects
+      await db.execute(
+          "ALTER TABLE subjects ADD COLUMN description TEXT NOT NULL DEFAULT ''");
+    }
   }
 
   /// The magic DLC Engine: Attaches another SQLite DB and merges its contents into the main DB.
   Future<void> mergeDlcDatabase(String dlcDbPath) async {
     if (_db == null) throw Exception("Main database not initialized");
 
+    // Sanitize path: replace single quotes to prevent SQL injection
+    final safePath = dlcDbPath.replaceAll("'", "''");
+
     try {
-      await db.execute("ATTACH DATABASE '$dlcDbPath' AS dlc");
+      await db.execute("ATTACH DATABASE '$safePath' AS dlc");
 
       // Perform the merge inside a transaction for speed and safety
-      // Use explicit column names to avoid schema mismatch if DLC has extra columns
       await db.transaction((txn) async {
         await txn.execute(
             "INSERT OR IGNORE INTO main.categories (id, name, accent_color, icon_name) SELECT id, name, accent_color, icon_name FROM dlc.categories");
@@ -103,5 +133,24 @@ class DatabaseService {
       // Always detach safely
       await db.execute("DETACH DATABASE dlc");
     }
+  }
+
+  /// Tracks that a DLC catalog item was installed
+  Future<void> markDlcInstalled(String catalogId, double version) async {
+    await db.insert(
+      'installed_dlc',
+      {
+        'catalog_id': catalogId,
+        'version': version,
+        'installed_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Returns the set of installed DLC catalog IDs
+  Future<Set<String>> getInstalledDlcIds() async {
+    final maps = await db.query('installed_dlc');
+    return maps.map((m) => m['catalog_id'] as String).toSet();
   }
 }

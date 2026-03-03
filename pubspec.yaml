@@ -27,13 +27,13 @@ dependencies:
   # Utilities
   uuid: ^4.2.2
   http: ^1.2.0
-  archive: ^3.4.10
   confetti: ^0.8.0
   google_fonts: ^8.0.2
   audioplayers: ^6.5.1
   sqflite_common_ffi: ^2.4.0+2
   flutter_heatmap_calendar: ^1.0.5
   fl_chart: ^1.1.1
+  url_launcher: ^6.2.2
   
 dev_dependencies:
   flutter_test:
@@ -41,7 +41,6 @@ dev_dependencies:
   flutter_lints: ^3.0.1
   build_runner: ^2.5.4
   riverpod_generator: ^2.3.9
-  mockito: ^5.4.6
   mocktail: ^1.0.4
   flutter_launcher_icons: ^0.14.3
   
@@ -49,12 +48,12 @@ flutter:
   uses-material-design: true
   assets:
     - assets/audio/
-    - assets/app-logo.png
-    - assets/home-screen.png
+    - assets/images/app-logo.png
+    - assets/images/home-screen.png
 
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/app-logo.png"
+  image_path: "assets/images/app-logo.png"
   adaptive_icon_background: "#000000"
-  adaptive_icon_foreground: "assets/app-logo.png"
+  adaptive_icon_foreground: "assets/images/app-logo.png"
