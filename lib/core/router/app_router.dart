@@ -9,6 +9,7 @@ import '../../features/storefront/storefront_screen.dart';
 import '../../features/history/history_screen.dart';
 import '../../features/splash/splash_screen.dart';
 import '../../features/settings/about_screen.dart';
+import '../../features/onboarding/onboarding_screen.dart';
 import '../ui/main_layout.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey =
@@ -25,6 +26,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/splash',
         name: 'splash',
         builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        name: 'onboarding',
+        builder: (context, state) => const OnboardingScreen(),
       ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,

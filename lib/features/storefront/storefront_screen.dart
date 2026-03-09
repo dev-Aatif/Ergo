@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'providers/storefront_provider.dart';
 import '../../core/audio/audio_service.dart';
 import '../../core/utils.dart';
 import 'models/catalog_item.dart';
 
-class StorefrontScreen extends ConsumerWidget {
+class StorefrontScreen extends ConsumerStatefulWidget {
   const StorefrontScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StorefrontScreen> createState() => _StorefrontScreenState();
+}
+
+class _StorefrontScreenState extends ConsumerState<StorefrontScreen> {
+  String _searchQuery = '';
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(storefrontProvider);
     final notifier = ref.read(storefrontProvider.notifier);
     final theme = Theme.of(context);
@@ -35,6 +43,7 @@ class StorefrontScreen extends ConsumerWidget {
 
   Widget _buildBody(BuildContext context, WidgetRef ref, StorefrontState state,
       StorefrontNotifier notifier, ThemeData theme) {
+    // Error banner
     Widget? errorBanner;
     if (state.error != null) {
       errorBanner = Container(
@@ -117,26 +126,79 @@ class StorefrontScreen extends ConsumerWidget {
       );
     }
 
+    // Filter items by search
+    final filteredItems = _searchQuery.isEmpty
+        ? state.items
+        : state.items
+            .where((item) =>
+                item.subjectName
+                    .toLowerCase()
+                    .contains(_searchQuery.toLowerCase()) ||
+                item.categoryName
+                    .toLowerCase()
+                    .contains(_searchQuery.toLowerCase()))
+            .toList();
+
+    // Group by category
+    final Map<String, List<CatalogItem>> grouped = {};
+    for (final item in filteredItems) {
+      grouped.putIfAbsent(item.categoryName, () => []).add(item);
+    }
+    final categoryNames = grouped.keys.toList()..sort();
+
     return Column(
       children: [
         if (errorBanner != null) errorBanner,
+
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: SearchBar(
+            hintText: 'Search subjects...',
+            leading: const Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: Icon(Icons.search_rounded, size: 20),
+            ),
+            trailing: _searchQuery.isNotEmpty
+                ? [
+                    IconButton(
+                      icon: const Icon(Icons.clear_rounded, size: 20),
+                      onPressed: () => setState(() => _searchQuery = ''),
+                    )
+                  ]
+                : null,
+            elevation: const WidgetStatePropertyAll(0),
+            backgroundColor: WidgetStatePropertyAll(theme
+                .colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.5)),
+            shape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            padding: const WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: 8)),
+            onChanged: (value) => setState(() => _searchQuery = value),
+          ),
+        ),
+
+        // Grouped items
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: state.items.length,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            itemCount: categoryNames.length + 1, // +1 for contribute banner
             itemBuilder: (context, index) {
-              final item = state.items[index];
-              final isDownloaded = state.downloadedItems.contains(item.id);
-              final progress = state.downloadProgress[item.id];
-              final isDownloading = progress != null;
+              // Contribute banner at the bottom
+              if (index == categoryNames.length) {
+                return _ContributeBanner();
+              }
 
-              return _StoreCard(
-                item: item,
-                isDownloaded: isDownloaded,
-                isDownloading: isDownloading,
-                progress: progress ?? 0,
-                isLoading: state.isLoading,
-                onDownload: () {
+              final categoryName = categoryNames[index];
+              final items = grouped[categoryName]!;
+
+              return _CategorySection(
+                categoryName: categoryName,
+                items: items,
+                state: state,
+                onDownload: (item) {
                   ref.read(audioServiceProvider).playClick();
                   notifier.downloadAndInstall(item);
                 },
@@ -149,7 +211,84 @@ class StorefrontScreen extends ConsumerWidget {
   }
 }
 
-class _StoreCard extends StatelessWidget {
+// ── Category Section with ExpansionTile ──
+
+class _CategorySection extends StatelessWidget {
+  final String categoryName;
+  final List<CatalogItem> items;
+  final StorefrontState state;
+  final void Function(CatalogItem) onDownload;
+
+  const _CategorySection({
+    required this.categoryName,
+    required this.items,
+    required this.state,
+    required this.onDownload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Use the first item's color as the section accent
+    final accentColor = safeParseColor(items.first.colorHex);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ExpansionTile(
+          initiallyExpanded: true,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          shape: const Border(),
+          collapsedShape: const Border(),
+          leading: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(getIconForName(items.first.iconUrl),
+                color: accentColor, size: 20),
+          ),
+          title: Text(
+            categoryName,
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(
+            '${items.length} pack${items.length == 1 ? '' : 's'}',
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          children: items
+              .map((item) => _StoreItemTile(
+                    item: item,
+                    isDownloaded: state.downloadedItems.contains(item.id),
+                    isDownloading: state.downloadProgress.containsKey(item.id),
+                    progress: state.downloadProgress[item.id] ?? 0,
+                    isLoading: state.isLoading,
+                    onDownload: () => onDownload(item),
+                  ))
+              .toList(),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Store Item Tile ──
+
+class _StoreItemTile extends StatelessWidget {
   final CatalogItem item;
   final bool isDownloaded;
   final bool isDownloading;
@@ -157,7 +296,7 @@ class _StoreCard extends StatelessWidget {
   final bool isLoading;
   final VoidCallback onDownload;
 
-  const _StoreCard({
+  const _StoreItemTile({
     required this.item,
     required this.isDownloaded,
     required this.isDownloading,
@@ -171,50 +310,29 @@ class _StoreCard extends StatelessWidget {
     final theme = Theme.of(context);
     final accentColor = safeParseColor(item.colorHex);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDownloaded
-              ? accentColor.withValues(alpha: 0.3)
-              : theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: accentColor.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDownloaded
+                ? accentColor.withValues(alpha: 0.2)
+                : theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+        ),
         child: Row(
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                getIconForName(item.iconUrl),
-                color: accentColor,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     item.subjectName,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -230,12 +348,6 @@ class _StoreCard extends StatelessWidget {
                       _InfoChip(
                         icon: Icons.quiz_outlined,
                         label: '${item.questionCount} Q',
-                        color: accentColor,
-                      ),
-                      const SizedBox(width: 8),
-                      _InfoChip(
-                        icon: Icons.category_outlined,
-                        label: item.categoryName,
                         color: accentColor,
                       ),
                     ],
@@ -254,21 +366,21 @@ class _StoreCard extends StatelessWidget {
   Widget _buildAction(BuildContext context, Color accentColor) {
     if (isDownloaded) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: Colors.green.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.check_circle, color: Colors.green, size: 16),
+            Icon(Icons.check_circle, color: Colors.green, size: 14),
             SizedBox(width: 4),
             Text('Installed',
                 style: TextStyle(
                     color: Colors.green,
                     fontWeight: FontWeight.w600,
-                    fontSize: 12)),
+                    fontSize: 11)),
           ],
         ),
       );
@@ -276,20 +388,20 @@ class _StoreCard extends StatelessWidget {
 
     if (isDownloading) {
       return SizedBox(
-        width: 44,
-        height: 44,
+        width: 36,
+        height: 36,
         child: Stack(
           alignment: Alignment.center,
           children: [
             CircularProgressIndicator(
               value: progress,
-              strokeWidth: 3,
+              strokeWidth: 2.5,
               color: accentColor,
               backgroundColor: accentColor.withValues(alpha: 0.15),
             ),
             Text('${(progress * 100).toInt()}',
                 style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.onSurface)),
           ],
@@ -302,21 +414,25 @@ class _StoreCard extends StatelessWidget {
       style: FilledButton.styleFrom(
         backgroundColor: accentColor.withValues(alpha: 0.12),
         foregroundColor: accentColor,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.download_rounded, size: 16),
+          Icon(Icons.download_rounded, size: 14),
           SizedBox(width: 4),
           Text('Get',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
         ],
       ),
     );
   }
 }
+
+// ── Info Chip ──
 
 class _InfoChip extends StatelessWidget {
   final IconData icon;
@@ -346,6 +462,79 @@ class _InfoChip extends StatelessWidget {
               style: TextStyle(
                   fontSize: 11, fontWeight: FontWeight.w500, color: color)),
         ],
+      ),
+    );
+  }
+}
+
+// ── Contribute Banner ──
+
+class _ContributeBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 12, 0, 24),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              theme.colorScheme.primary.withValues(alpha: 0.08),
+              theme.colorScheme.tertiary.withValues(alpha: 0.06),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: 0.15),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.volunteer_activism_rounded,
+                size: 32,
+                color: theme.colorScheme.primary.withValues(alpha: 0.7)),
+            const SizedBox(height: 12),
+            Text(
+              'Want more packs?',
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Contribute questions or create your own quiz pack for the community!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final uri = Uri.parse('https://github.com/dev-Aatif/ergo-db');
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+              icon: const Icon(Icons.open_in_new_rounded, size: 16),
+              label: const Text('Contribute on GitHub'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: theme.colorScheme.primary,
+                side: BorderSide(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.3)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

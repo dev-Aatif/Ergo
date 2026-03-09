@@ -45,10 +45,13 @@ class AboutScreen extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: Image.asset(
-                      'assets/images/app-logo.png',
-                      width: 80,
-                      height: 80,
+                    child: Container(
+                      color: theme.colorScheme.surface,
+                      child: Image.asset(
+                        'assets/images/app-logo.png',
+                        width: 80,
+                        height: 80,
+                      ),
                     ),
                   ),
                 ),

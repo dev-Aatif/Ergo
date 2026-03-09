@@ -122,10 +122,13 @@ class QuizProviderNotifier
     extends AutoDisposeFamilyAsyncNotifier<QuizState, String> {
   late String _subjectId;
   late String _categoryId;
+  late String _attemptId;
+  DateTime _questionStartTime = DateTime.now();
 
   @override
   Future<QuizState> build(String arg) async {
     _subjectId = arg;
+    _attemptId = const Uuid().v4();
     final dbService = ref.read(databaseServiceProvider);
     final config = ref.read(quizConfigProvider);
 
@@ -152,12 +155,38 @@ class QuizProviderNotifier
         ? shuffledQuestions.take(config.questionLimit!).toList()
         : shuffledQuestions;
 
+    _resetQuestionTimer();
+
     return QuizState(
       isLoading: false,
       questions: limited,
       startTime: DateTime.now(),
       config: config,
     );
+  }
+
+  void _resetQuestionTimer() {
+    _questionStartTime = DateTime.now();
+  }
+
+  Future<void> _logAnswer({
+    required String questionId,
+    required int questionIndex,
+    required int selectedIndex,
+    required int correctIndex,
+    required bool isCorrect,
+  }) async {
+    final timeMs = DateTime.now().difference(_questionStartTime).inMilliseconds;
+    await ref.read(databaseServiceProvider).db.insert('answer_log', {
+      'attempt_id': _attemptId,
+      'question_id': questionId,
+      'question_index': questionIndex,
+      'selected_index': selectedIndex,
+      'correct_index': correctIndex,
+      'is_correct': isCorrect ? 1 : 0,
+      'time_ms': timeMs,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+    });
   }
 
   void answerQuestion(int selectedIndex) async {
@@ -170,6 +199,15 @@ class QuizProviderNotifier
 
     final currentQuestion = currentState.questions[currentState.currentIndex];
     bool isCorrect = selectedIndex == currentQuestion.correctIndex;
+
+    // Log this answer
+    await _logAnswer(
+      questionId: currentQuestion.id,
+      questionIndex: currentState.currentIndex,
+      selectedIndex: selectedIndex,
+      correctIndex: currentQuestion.correctIndex,
+      isCorrect: isCorrect,
+    );
 
     final newScore = currentState.score + (isCorrect ? 1 : 0);
     final List<String> newMissedIds = List.from(currentState.missedQuestionIds);
@@ -228,6 +266,7 @@ class QuizProviderNotifier
         isFinished: true,
       ));
     } else {
+      _resetQuestionTimer();
       state = AsyncValue.data(currentState.copyWith(
         currentIndex: currentState.currentIndex + 1,
         score: newScore,

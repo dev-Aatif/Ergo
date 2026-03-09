@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../core/database/database_service.dart';
 import '../../home/providers/home_provider.dart';
+import '../../category/providers/category_provider.dart';
 import '../models/catalog_item.dart';
 
 final storefrontProvider =
@@ -146,6 +147,8 @@ class StorefrontNotifier extends StateNotifier<StorefrontState> {
 
       // Force the home screen to reload categories from DB
       ref.invalidate(categoriesProvider);
+      // Also refresh subjects so new packs show without restart
+      ref.invalidate(subjectsProvider);
     } on SocketException {
       final prog = Map<String, double>.from(state.downloadProgress);
       prog.remove(item.id);

@@ -12,7 +12,7 @@ class DatabaseService {
   Database? _db;
 
   static const String _dbName = 'ergo_main.db';
-  static const int _dbVersion = 2;
+  static const int _dbVersion = 3;
 
   Database get db {
     if (_db == null) throw Exception("Database not initialized");
@@ -90,13 +90,30 @@ class DatabaseService {
       )
     ''');
 
+    await _createAnswerLogTable(db);
+
     // Hydrate the database with seed data
     await insertSeedData(db);
   }
 
+  static Future<void> _createAnswerLogTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS answer_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        attempt_id TEXT NOT NULL,
+        question_id TEXT NOT NULL,
+        question_index INTEGER NOT NULL,
+        selected_index INTEGER NOT NULL,
+        correct_index INTEGER NOT NULL,
+        is_correct INTEGER NOT NULL,
+        time_ms INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+  }
+
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      // Migration v1 → v2: add installed_dlc table
       await db.execute('''
         CREATE TABLE IF NOT EXISTS installed_dlc (
           catalog_id TEXT PRIMARY KEY,
@@ -104,9 +121,11 @@ class DatabaseService {
           installed_at INTEGER NOT NULL
         )
       ''');
-      // Migration v1 → v2: add description column to subjects
       await db.execute(
           "ALTER TABLE subjects ADD COLUMN description TEXT NOT NULL DEFAULT ''");
+    }
+    if (oldVersion < 3) {
+      await _createAnswerLogTable(db);
     }
   }
 

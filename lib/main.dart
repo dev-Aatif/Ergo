@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'core/router/app_router.dart';
 import 'core/database/database_service.dart';
 
@@ -46,7 +45,7 @@ class ErgoApp extends ConsumerWidget {
           onPrimaryContainer: const Color(0xFF1D192B),
         ),
         useMaterial3: true,
-        textTheme: GoogleFonts.interTextTheme(Theme.of(context).textTheme),
+        fontFamily: 'Inter',
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
@@ -69,11 +68,11 @@ class ErgoApp extends ConsumerWidget {
           onPrimaryContainer: const Color(0xFFE8DEF8),
         ),
         useMaterial3: true,
-        textTheme:
-            GoogleFonts.interTextTheme(Theme.of(context).textTheme).apply(
-          bodyColor: const Color(0xFFE8EAED),
-          displayColor: const Color(0xFFE8EAED),
-        ),
+        fontFamily: 'Inter',
+        textTheme: Theme.of(context).textTheme.apply(
+              bodyColor: const Color(0xFFE8EAED),
+              displayColor: const Color(0xFFE8EAED),
+            ),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,

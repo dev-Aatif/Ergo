@@ -61,7 +61,7 @@ void main() {
       ],
     );
     final streak = await container.read(streakProvider.future);
-    expect(streak, 0);
+    expect(streak.currentStreak, 0);
   });
 
   test('Streak is 1 for a single attempt today', () async {
@@ -73,7 +73,7 @@ void main() {
       ],
     );
     final streak = await container.read(streakProvider.future);
-    expect(streak, 1);
+    expect(streak.currentStreak, 1);
   });
 
   test('Streak is 1 when only yesterday has attempts', () async {
@@ -85,7 +85,7 @@ void main() {
       ],
     );
     final streak = await container.read(streakProvider.future);
-    expect(streak, 1);
+    expect(streak.currentStreak, 1);
   });
 
   test('Streak counts 3 continuous days starting today', () async {
@@ -101,7 +101,7 @@ void main() {
       ],
     );
     final streak = await container.read(streakProvider.future);
-    expect(streak, 3);
+    expect(streak.currentStreak, 3);
   });
 
   test('Streak resets when there is a gap', () async {
@@ -117,7 +117,7 @@ void main() {
       ],
     );
     final streak = await container.read(streakProvider.future);
-    expect(streak, 1); // Only today counts
+    expect(streak.currentStreak, 1); // Only today counts
   });
 
   test('Streak is 0 if last attempt was 2+ days ago', () async {
@@ -129,7 +129,7 @@ void main() {
       ],
     );
     final streak = await container.read(streakProvider.future);
-    expect(streak, 0);
+    expect(streak.currentStreak, 0);
   });
 
   test('Multiple attempts on same day count as 1 streak day', () async {
@@ -144,7 +144,7 @@ void main() {
       ],
     );
     final streak = await container.read(streakProvider.future);
-    expect(streak, 1);
+    expect(streak.currentStreak, 1);
   });
 
   test('Long streak of 7 days', () async {
@@ -159,6 +159,6 @@ void main() {
       ],
     );
     final streak = await container.read(streakProvider.future);
-    expect(streak, 7);
+    expect(streak.currentStreak, 7);
   });
 }

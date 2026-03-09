@@ -1,56 +1,97 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/database_service.dart';
 
-final streakProvider = FutureProvider<int>((ref) async {
+class StreakData {
+  final int currentStreak;
+  final int bestStreak;
+  final List<bool> last14Days; // true = played, most recent first
+
+  const StreakData({
+    required this.currentStreak,
+    required this.bestStreak,
+    required this.last14Days,
+  });
+}
+
+final streakProvider = FutureProvider<StreakData>((ref) async {
   final dbService = ref.watch(databaseServiceProvider);
   final db = dbService.db;
 
-  // Retrieve distinct dates of quiz attempts ordered by date descending.
-  // We use date(date / 1000, 'unixepoch', 'localtime') to group by local days.
+  // Get distinct dates
   final results = await db.rawQuery('''
     SELECT DISTINCT date(date / 1000, 'unixepoch', 'localtime') as attempt_date 
     FROM quiz_attempts 
     ORDER BY attempt_date DESC
   ''');
 
-  if (results.isEmpty) return 0;
-
-  final now = DateTime.now();
-  final todayStr =
-      "${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-  final yesterday = now.subtract(const Duration(days: 1));
-  final yesterdayStr =
-      "${yesterday.year.toString().padLeft(4, '0')}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}";
-
-  int streak = 0;
-  DateTime expectedDate = now;
-
-  // Check if first date is today or yesterday to start the streak
-  final firstDateStr = results.first['attempt_date'] as String;
-  if (firstDateStr == todayStr) {
-    streak = 1;
-    expectedDate = yesterday;
-  } else if (firstDateStr == yesterdayStr) {
-    streak = 1;
-    expectedDate = yesterday.subtract(const Duration(days: 1));
-  } else {
-    // If last attempt was before yesterday, streak is broken/zero
-    return 0;
+  if (results.isEmpty) {
+    return StreakData(
+      currentStreak: 0,
+      bestStreak: 0,
+      last14Days: List.filled(14, false),
+    );
   }
 
-  // Iterate from the second record backwards to count consecutive days
-  for (int i = 1; i < results.length; i++) {
-    final expectedStr =
-        "${expectedDate.year.toString().padLeft(4, '0')}-${expectedDate.month.toString().padLeft(2, '0')}-${expectedDate.day.toString().padLeft(2, '0')}";
-    final currentStr = results[i]['attempt_date'] as String;
+  final activeDates = results.map((r) => r['attempt_date'] as String).toSet();
 
-    if (currentStr == expectedStr) {
-      streak++;
-      expectedDate = expectedDate.subtract(const Duration(days: 1));
-    } else {
-      break;
+  // Current streak
+  final now = DateTime.now();
+  final todayStr = _dateStr(now);
+  final yesterdayStr = _dateStr(now.subtract(const Duration(days: 1)));
+
+  int currentStreak = 0;
+  DateTime expectedDate = now;
+
+  if (activeDates.contains(todayStr)) {
+    currentStreak = 1;
+    expectedDate = now.subtract(const Duration(days: 1));
+  } else if (activeDates.contains(yesterdayStr)) {
+    currentStreak = 1;
+    expectedDate = now.subtract(const Duration(days: 2));
+  } else {
+    // Streak broken
+    currentStreak = 0;
+    expectedDate = now; // won't matter
+  }
+
+  if (currentStreak > 0) {
+    for (int i = 1; i < results.length; i++) {
+      if (activeDates.contains(_dateStr(expectedDate))) {
+        currentStreak++;
+        expectedDate = expectedDate.subtract(const Duration(days: 1));
+      } else {
+        break;
+      }
     }
   }
 
-  return streak;
+  // Best streak — scan all dates
+  final sortedDates = activeDates.toList()..sort();
+  int bestStreak = sortedDates.isEmpty ? 0 : 1;
+  int runStreak = 1;
+  for (int i = 1; i < sortedDates.length; i++) {
+    final prev = DateTime.parse(sortedDates[i - 1]);
+    final curr = DateTime.parse(sortedDates[i]);
+    if (curr.difference(prev).inDays == 1) {
+      runStreak++;
+      if (runStreak > bestStreak) bestStreak = runStreak;
+    } else {
+      runStreak = 1;
+    }
+  }
+
+  // Last 14 days
+  final last14 = List.generate(14, (i) {
+    final day = now.subtract(Duration(days: i));
+    return activeDates.contains(_dateStr(day));
+  });
+
+  return StreakData(
+    currentStreak: currentStreak,
+    bestStreak: bestStreak,
+    last14Days: last14,
+  );
 });
+
+String _dateStr(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';

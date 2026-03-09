@@ -29,6 +29,14 @@ void main() {
                 );
               ''');
               await db.execute('''
+                CREATE TABLE subjects (
+                  id TEXT PRIMARY KEY,
+                  category_id TEXT NOT NULL,
+                  name TEXT NOT NULL,
+                  description TEXT NOT NULL DEFAULT ''
+                );
+              ''');
+              await db.execute('''
                 CREATE TABLE quiz_attempts (
                   id TEXT PRIMARY KEY,
                   category_id TEXT NOT NULL,
@@ -37,6 +45,19 @@ void main() {
                   total_questions INTEGER NOT NULL,
                   time_taken INTEGER NOT NULL,
                   missed_question_ids TEXT NOT NULL
+                );
+              ''');
+              await db.execute('''
+                CREATE TABLE answer_log (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  attempt_id TEXT NOT NULL,
+                  question_id TEXT NOT NULL,
+                  question_index INTEGER NOT NULL,
+                  selected_index INTEGER NOT NULL,
+                  correct_index INTEGER NOT NULL,
+                  is_correct INTEGER NOT NULL,
+                  time_ms INTEGER NOT NULL,
+                  created_at INTEGER NOT NULL
                 );
               ''');
               await db.insert('categories', {

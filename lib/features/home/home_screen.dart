@@ -23,14 +23,16 @@ class HomeScreen extends ConsumerWidget {
         scrolledUnderElevation: 0,
         actions: [
           streakAsync.when(
-            data: (streak) => Padding(
+            data: (streakData) => Padding(
               padding: const EdgeInsets.only(right: 16.0),
               child: Row(
                 children: [
                   Icon(Icons.local_fire_department,
-                      color: streak > 0 ? Colors.orange : Colors.grey),
+                      color: streakData.currentStreak > 0
+                          ? Colors.orange
+                          : Colors.grey),
                   const SizedBox(width: 4),
-                  Text('$streak',
+                  Text('${streakData.currentStreak}',
                       style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 16)),
                 ],
@@ -55,6 +57,15 @@ class HomeScreen extends ConsumerWidget {
 
           return CustomScrollView(
             slivers: [
+              // Streak card
+              SliverToBoxAdapter(
+                child: streakAsync.when(
+                  data: (streakData) => _StreakCard(data: streakData),
+                  loading: () => const SizedBox(),
+                  error: (_, __) => const SizedBox(),
+                ),
+              ),
+
               // Category grid
               SliverPadding(
                 padding:
@@ -140,6 +151,138 @@ class HomeScreen extends ConsumerWidget {
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stack) => Center(child: Text('Error: $error')),
+      ),
+    );
+  }
+}
+
+// ── Streak Card ──
+
+class _StreakCard extends StatelessWidget {
+  final StreakData data;
+  const _StreakCard({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isActive = data.currentStreak > 0;
+    final fireColor = isActive ? Colors.orange : Colors.grey;
+
+    String motivationalText;
+    if (data.currentStreak == 0) {
+      motivationalText = 'Play a quiz to start your streak!';
+    } else if (data.currentStreak >= data.bestStreak &&
+        data.currentStreak > 1) {
+      motivationalText = 'You\'re at your all-time best! 🏆';
+    } else if (data.currentStreak >= 7) {
+      motivationalText = 'Incredible dedication! 🔥';
+    } else if (data.currentStreak >= 3) {
+      motivationalText = 'Keep it going! 💪';
+    } else {
+      motivationalText = 'Don\'t break the chain!';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              fireColor.withValues(alpha: 0.08),
+              fireColor.withValues(alpha: 0.02),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: fireColor.withValues(alpha: 0.15),
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                // Current streak
+                Icon(Icons.local_fire_department, color: fireColor, size: 28),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${data.currentStreak} day${data.currentStreak == 1 ? '' : 's'}',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                    Text(motivationalText,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurfaceVariant)),
+                  ],
+                ),
+                const Spacer(),
+                // Best streak
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Best: ${data.bestStreak}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const Text('days',
+                        style: TextStyle(fontSize: 10, color: Colors.grey)),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // 14-day dot grid
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(14, (i) {
+                final dayIndex = 13 - i; // reverse so oldest is left
+                final played = dayIndex < data.last14Days.length
+                    ? data.last14Days[dayIndex]
+                    : false;
+                return Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: played
+                        ? fireColor.withValues(alpha: 0.7)
+                        : theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('14 days ago',
+                    style: TextStyle(
+                        fontSize: 9,
+                        color: theme.colorScheme.onSurfaceVariant
+                            .withValues(alpha: 0.5))),
+                Text('Today',
+                    style: TextStyle(
+                        fontSize: 9,
+                        color: theme.colorScheme.onSurfaceVariant
+                            .withValues(alpha: 0.5))),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

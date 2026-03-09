@@ -94,11 +94,13 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
     var selectedDifficulty = config.difficulty;
     var selectedSpeed = config.speed;
     int? selectedLimit = config.questionLimit;
+    var showCustomInput = false;
+    final customController = TextEditingController();
 
     showModalBottomSheet(
       context: context,
-      isDismissible: false,
-      enableDrag: false,
+      isDismissible: true,
+      enableDrag: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
@@ -128,35 +130,170 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Game Setup',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold)),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close_rounded),
+                        tooltip: 'Cancel',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Quick Presets ──
+                  Text('Quick Start',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _PresetCard(
+                          label: 'Quick',
+                          emoji: '🟢',
+                          desc: '10Q • Easy',
+                          color: Colors.green,
+                          onTap: () {
+                            ref.read(quizConfigProvider.notifier).state =
+                                QuizConfig(
+                              questionLimit: totalQuestions < 10 ? null : 10,
+                              difficulty: Difficulty.plotArmor,
+                              speed: Speed.snail,
+                            );
+                            Navigator.pop(ctx);
+                            setState(() => _configDone = true);
+                            ref.invalidate(quizProvider(widget.subjectId));
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _PresetCard(
+                          label: 'Challenge',
+                          emoji: '🟠',
+                          desc: '20Q • 3 lives',
+                          color: Colors.orange,
+                          onTap: () {
+                            ref.read(quizConfigProvider.notifier).state =
+                                QuizConfig(
+                              questionLimit: totalQuestions < 20 ? null : 20,
+                              difficulty: Difficulty.almostHim,
+                              speed: Speed.crunchTime,
+                            );
+                            Navigator.pop(ctx);
+                            setState(() => _configDone = true);
+                            ref.invalidate(quizProvider(widget.subjectId));
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _PresetCard(
+                          label: 'Insane',
+                          emoji: '🔴',
+                          desc: 'All • No mercy',
+                          color: Colors.red,
+                          onTap: () {
+                            ref.read(quizConfigProvider.notifier).state =
+                                const QuizConfig(
+                              questionLimit: null,
+                              difficulty: Difficulty.canonEvent,
+                              speed: Speed.panic,
+                            );
+                            Navigator.pop(ctx);
+                            setState(() => _configDone = true);
+                            ref.invalidate(quizProvider(widget.subjectId));
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+
                   const SizedBox(height: 20),
-                  Text('Game Setup',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 24),
+                  Divider(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .outlineVariant
+                          .withValues(alpha: 0.4)),
+                  const SizedBox(height: 12),
+
+                  // ── Custom Setup ──
+                  Text('Custom Setup',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant)),
+                  const SizedBox(height: 12),
 
                   // Question count
                   Text('Questions',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
                           color:
                               Theme.of(context).colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     children: [
-                      for (final count in [5, 10, 15, null])
+                      for (final count in [10, 25, 50, 100]
+                          .where((c) => c <= totalQuestions))
                         ChoiceChip(
-                          label: Text(count == null
-                              ? 'All ($totalQuestions)'
-                              : '$count'),
-                          selected: selectedLimit == count,
+                          label: Text('$count'),
+                          selected: selectedLimit == count && !showCustomInput,
                           selectedColor: color.withValues(alpha: 0.2),
-                          onSelected: (_) =>
-                              setModalState(() => selectedLimit = count),
+                          onSelected: (_) => setModalState(() {
+                            selectedLimit = count;
+                            showCustomInput = false;
+                          }),
                         ),
+                      ChoiceChip(
+                        label: const Text('Custom'),
+                        selected: showCustomInput,
+                        selectedColor: color.withValues(alpha: 0.2),
+                        onSelected: (_) => setModalState(() {
+                          showCustomInput = true;
+                        }),
+                      ),
+                      ChoiceChip(
+                        label: Text('All ($totalQuestions)'),
+                        selected: selectedLimit == null && !showCustomInput,
+                        selectedColor: color.withValues(alpha: 0.2),
+                        onSelected: (_) => setModalState(() {
+                          selectedLimit = null;
+                          showCustomInput = false;
+                        }),
+                      ),
                     ],
                   ),
+                  if (showCustomInput) ...[
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: customController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        hintText: 'Enter number (1-$totalQuestions)',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        isDense: true,
+                      ),
+                      onChanged: (val) {
+                        final n = int.tryParse(val);
+                        if (n != null && n > 0 && n <= totalQuestions) {
+                          selectedLimit = n;
+                        }
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 20),
 
                   // Difficulty
@@ -267,7 +404,12 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
           },
         );
       },
-    );
+    ).then((_) {
+      // If sheet was dismissed without starting, go back
+      if (!_configDone && mounted) {
+        if (context.mounted) context.pop();
+      }
+    });
   }
 
   @override
@@ -635,6 +777,57 @@ class _ModeChip extends StatelessWidget {
                       ? color.withValues(alpha: 0.8)
                       : theme.colorScheme.onSurfaceVariant,
                 )),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PresetCard extends StatelessWidget {
+  final String label;
+  final String emoji;
+  final String desc;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _PresetCard({
+    required this.label,
+    required this.emoji,
+    required this.desc,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
+        ),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 22)),
+            const SizedBox(height: 4),
+            Text(label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                )),
+            const SizedBox(height: 2),
+            Text(desc,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center),
           ],
         ),
       ),

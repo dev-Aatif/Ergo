@@ -50,83 +50,56 @@ class HistoryScreen extends ConsumerWidget {
                   const SizedBox(height: 20),
                 ],
 
-                // Metric cards
-                _buildMetricsGrid(context, stats),
-                const SizedBox(height: 32),
-
-                // Heatmap
-                Text('Activity Flow',
-                    style: theme.textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.bold)),
+                // ── Overview Metrics ──
+                const _SectionHeader(title: 'Overview'),
                 const SizedBox(height: 12),
-                Card(
-                  elevation: 0,
-                  color: theme.colorScheme.surfaceContainerHighest
-                      .withValues(alpha: 0.3),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: HeatMap(
-                      datasets: stats.heatMapData,
-                      colorMode: ColorMode.opacity,
-                      showText: false,
-                      scrollable: true,
-                      colorsets: {
-                        1: theme.colorScheme.primary,
-                      },
-                      startDate:
-                          DateTime.now().subtract(const Duration(days: 60)),
-                      endDate: DateTime.now(),
-                      size: 20,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
+                _buildOverviewGrid(context, stats),
+                const SizedBox(height: 28),
 
-                // Performance Trend Chart with touch tooltips
-                Text('Performance Trend',
-                    style: theme.textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 250,
-                  child: Card(
-                    elevation: 0,
-                    color: theme.colorScheme.surfaceContainerHighest
-                        .withValues(alpha: 0.3),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: LineChart(_buildChartData(theme, stats)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
+                // ── Activity Heatmap ──
+                const _SectionHeader(title: 'Activity Flow'),
+                const SizedBox(height: 12),
+                _buildHeatmap(context, stats),
+                const SizedBox(height: 28),
 
-                // Category Breakdown
-                if (stats.categoryBreakdown.isNotEmpty &&
-                    selectedCategory == null) ...[
-                  Text('Category Breakdown',
-                      style: theme.textTheme.titleLarge
-                          ?.copyWith(fontWeight: FontWeight.bold)),
+                // ── Performance Trend ──
+                const _SectionHeader(title: 'Performance Trend'),
+                const SizedBox(height: 12),
+                _buildPerformanceChart(context, stats),
+                const SizedBox(height: 28),
+
+                // ── Behavioral Insights ──
+                if (stats.totalQuestionsAnswered > 0) ...[
+                  const _SectionHeader(title: 'Behavioral Insights'),
                   const SizedBox(height: 12),
-                  ...stats.categoryBreakdown.entries.map(
-                    (e) => _buildCategoryCard(context, e.value),
-                  ),
-                  const SizedBox(height: 32),
+                  _buildBehavioralGrid(context, stats),
+                  const SizedBox(height: 28),
                 ],
 
-                // Recent Attempts
-                Text('Recent Attempts',
-                    style: theme.textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                ...stats.recentAttempts.reversed.take(10).map(
-                      (attempt) => _buildAttemptTile(context, attempt),
-                    ),
-                const SizedBox(height: 40),
+                // ── Timing Analysis (Tier 2) ──
+                if (stats.avgTimeCorrectMs > 0 ||
+                    stats.avgTimeIncorrectMs > 0) ...[
+                  const _SectionHeader(title: 'Timing Analysis'),
+                  const SizedBox(height: 12),
+                  _buildTimingGrid(context, stats),
+                  const SizedBox(height: 28),
+                ],
+
+                // ── Chronotype ──
+                if (stats.chronotypeAccuracy.isNotEmpty) ...[
+                  const _SectionHeader(title: 'Best Time to Play'),
+                  const SizedBox(height: 12),
+                  _buildChronotypeChart(context, stats),
+                  const SizedBox(height: 28),
+                ],
+
+                // ── Category Breakdown ──
+                if (stats.categoryBreakdown.isNotEmpty) ...[
+                  const _SectionHeader(title: 'Category Breakdown'),
+                  const SizedBox(height: 12),
+                  _buildCategoryBreakdown(context, stats),
+                  const SizedBox(height: 24),
+                ],
               ],
             ),
           );
@@ -135,318 +108,605 @@ class HistoryScreen extends ConsumerWidget {
     );
   }
 
+  // ── Category Filter ──
+
   Widget _buildCategoryFilter(
       BuildContext context, WidgetRef ref, HistoryStats stats) {
     final theme = Theme.of(context);
     final selected = ref.watch(selectedCategoryProvider);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String?>(
-          value: selected,
-          isExpanded: true,
-          hint: const Text('All Categories'),
-          icon: const Icon(Icons.filter_list),
-          items: [
-            const DropdownMenuItem<String?>(
-              value: null,
-              child: Text('All Categories'),
+    return SizedBox(
+      height: 38,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: const Text('All'),
+              selected: selected == null,
+              onSelected: (_) =>
+                  ref.read(selectedCategoryProvider.notifier).state = null,
+              selectedColor: theme.colorScheme.primary.withValues(alpha: 0.15),
             ),
-            ...stats.categoryBreakdown.entries.map(
-              (e) => DropdownMenuItem<String?>(
-                value: e.key,
-                child: Text(e.value.categoryName),
-              ),
-            ),
-          ],
-          onChanged: (value) {
-            ref.read(selectedCategoryProvider.notifier).state = value;
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryCard(BuildContext context, CategoryStats catStats) {
-    final theme = Theme.of(context);
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(catStats.categoryName,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(
-                      '${catStats.quizCount} quizzes • ${catStats.avgTime.toStringAsFixed(1)}s avg',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant)),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: _getAccuracyColor(catStats.accuracy)
-                    .withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '${(catStats.accuracy * 100).toStringAsFixed(0)}%',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: _getAccuracyColor(catStats.accuracy),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAttemptTile(BuildContext context, dynamic attempt) {
-    final theme = Theme.of(context);
-    final pct = attempt.totalQuestions > 0
-        ? (attempt.score / attempt.totalQuestions * 100)
-        : 0.0;
-    final dateStr =
-        '${attempt.date.day}/${attempt.date.month}/${attempt.date.year}';
-
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-      child: ListTile(
-        dense: true,
-        leading: CircleAvatar(
-          radius: 18,
-          backgroundColor: _getAccuracyColor(pct / 100).withValues(alpha: 0.15),
-          child: Text(
-            '${pct.toInt()}',
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: _getAccuracyColor(pct / 100)),
           ),
+          ...stats.categoryBreakdown.entries.map((entry) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  label: Text(entry.value.categoryName),
+                  selected: selected == entry.key,
+                  onSelected: (_) => ref
+                      .read(selectedCategoryProvider.notifier)
+                      .state = entry.key,
+                  selectedColor:
+                      theme.colorScheme.primary.withValues(alpha: 0.15),
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+
+  // ── Overview Grid ──
+
+  Widget _buildOverviewGrid(BuildContext context, HistoryStats stats) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        _StatTile(
+          icon: Icons.quiz_outlined,
+          label: 'Quizzes',
+          value: '${stats.totalQuizzesTaken}',
+          color: Colors.blue,
+          hint: 'Total number of quizzes you\'ve completed.',
         ),
-        title: Text('${attempt.score}/${attempt.totalQuestions} correct',
-            style: theme.textTheme.bodyMedium),
-        subtitle: Text('$dateStr • ${attempt.timeTakenSeconds}s',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-        trailing: Icon(
-          pct >= 80
-              ? Icons.star
-              : (pct >= 50 ? Icons.star_half : Icons.star_border),
+        _StatTile(
+          icon: Icons.check_circle_outline,
+          label: 'Accuracy',
+          value: '${(stats.globalAccuracy * 100).toStringAsFixed(1)}%',
+          color: Colors.green,
+          hint:
+              'Percentage of questions you answered correctly across all quizzes.',
+        ),
+        _StatTile(
+          icon: Icons.help_outline,
+          label: 'Questions',
+          value: '${stats.totalQuestionsAnswered}',
+          color: Colors.purple,
+          hint: 'Total questions you\'ve answered across all quizzes.',
+        ),
+        _StatTile(
+          icon: Icons.timer_outlined,
+          label: 'Avg Pace',
+          value: '${stats.averageTimePerQuestion.toStringAsFixed(1)}s',
+          color: Colors.orange,
+          hint: 'Average time you take per question in seconds.',
+        ),
+        _StatTile(
+          icon: Icons.local_fire_department,
+          label: 'Best Streak',
+          value: '${stats.bestStreakEver}d',
+          color: Colors.deepOrange,
+          hint: 'Longest consecutive days you played quizzes.',
+        ),
+        _StatTile(
+          icon: Icons.emoji_events_outlined,
+          label: 'Best Score',
+          value: '${(stats.bestScorePercentage * 100).toStringAsFixed(0)}%',
           color: Colors.amber,
+          hint: 'Your highest accuracy in a single quiz session.',
+        ),
+        _StatTile(
+          icon: Icons.speed,
+          label: 'Fastest',
+          value: stats.fastestQuizPace > 0
+              ? '${stats.fastestQuizPace.toStringAsFixed(1)}s/Q'
+              : '-',
+          color: Colors.cyan,
+          hint:
+              'Fastest average pace you\'ve achieved in a quiz (seconds per question).',
+        ),
+        if (stats.mostPlayedSubject != null)
+          _StatTile(
+            icon: Icons.star_outline,
+            label: 'Favorite',
+            value: stats.mostPlayedSubject!,
+            color: Colors.pink,
+            isText: true,
+            hint: 'The category you\'ve played the most quizzes in.',
+          ),
+      ],
+    );
+  }
+
+  // ── Behavioral Grid ──
+
+  Widget _buildBehavioralGrid(BuildContext context, HistoryStats stats) {
+    final trend = stats.improvementTrend;
+    final trendLabel = trend > 0
+        ? '+${(trend * 100).toStringAsFixed(1)}%'
+        : '${(trend * 100).toStringAsFixed(1)}%';
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        _StatTile(
+          icon: trend >= 0 ? Icons.trending_up : Icons.trending_down,
+          label: '7-Day Trend',
+          value: trendLabel,
+          color: trend >= 0 ? Colors.green : Colors.red,
+          hint:
+              'How your accuracy changed in the last 7 days compared to the 7 days before that.',
+        ),
+        _StatTile(
+          icon: Icons.autorenew,
+          label: 'Return',
+          value: stats.avgReturnHours > 0
+              ? '${stats.avgReturnHours.toStringAsFixed(1)}h'
+              : '-',
+          color: Colors.teal,
+          hint: 'Average time between your quiz sessions in hours.',
+        ),
+        _StatTile(
+          icon: Icons.exit_to_app,
+          label: 'Quit Rate',
+          value: '${(stats.abandonmentRate * 100).toStringAsFixed(0)}%',
+          color: Colors.grey,
+          hint: 'Percentage of quizzes you quit early without completing.',
+        ),
+        _StatTile(
+          icon: Icons.local_fire_department,
+          label: 'Revenge',
+          value: '${stats.revengeSessions}',
+          color: Colors.red,
+          hint:
+              'Times you immediately retried after scoring below 50%. Shows determination!',
+        ),
+        if (stats.knowledgeVolatility > 0)
+          _StatTile(
+            icon: Icons.show_chart,
+            label: 'Volatility',
+            value: '${(stats.knowledgeVolatility * 100).toStringAsFixed(0)}%',
+            color: Colors.amber[700]!,
+            hint:
+                'How much your scores vary. Low = consistent, High = unpredictable performance.',
+          ),
+      ],
+    );
+  }
+
+  // ── Timing Grid (Tier 2) ──
+
+  Widget _buildTimingGrid(BuildContext context, HistoryStats stats) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        _StatTile(
+          icon: Icons.check,
+          label: 'Correct Pace',
+          value: '${(stats.avgTimeCorrectMs / 1000).toStringAsFixed(1)}s',
+          color: Colors.green,
+          hint: 'Average time you take to answer questions you get right.',
+        ),
+        _StatTile(
+          icon: Icons.close,
+          label: 'Wrong Pace',
+          value: '${(stats.avgTimeIncorrectMs / 1000).toStringAsFixed(1)}s',
+          color: Colors.red,
+          hint:
+              'Average time you take on questions you get wrong. If faster than Correct Pace, you may be guessing.',
+        ),
+        if (stats.fatigueIndex != 0)
+          _StatTile(
+            icon: Icons.battery_alert_outlined,
+            label: 'Fatigue',
+            value:
+                '${stats.fatigueIndex > 0 ? '-' : '+'}${(stats.fatigueIndex.abs() * 100).toStringAsFixed(0)}%',
+            color: stats.fatigueIndex > 0.1 ? Colors.red : Colors.green,
+            hint:
+                'How much your accuracy drops from early to late questions. Negative = you get worse as quizzes go on.',
+          ),
+        _StatTile(
+          icon: Icons.gps_fixed,
+          label: 'Clutch',
+          value: '${(stats.clutchAccuracy * 100).toStringAsFixed(0)}%',
+          color: Colors.indigo,
+          hint:
+              'Your accuracy on the final question of each quiz. High = you finish strong under pressure!',
+        ),
+        if (stats.tiltFactor > 0)
+          _StatTile(
+            icon: Icons.psychology_alt,
+            label: 'Tilt Factor',
+            value: '${(stats.tiltFactor * 100).toStringAsFixed(0)}%',
+            color: Colors.deepPurple,
+            hint:
+                'Chance of getting another wrong answer after 2+ consecutive wrong. High = mistakes spiral into more mistakes.',
+          ),
+      ],
+    );
+  }
+
+  // ── Heatmap ──
+
+  Widget _buildHeatmap(BuildContext context, HistoryStats stats) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: HeatMap(
+          datasets: stats.heatMapData,
+          colorMode: ColorMode.opacity,
+          showText: false,
+          scrollable: true,
+          colorsets: {1: theme.colorScheme.primary},
+          startDate: DateTime.now().subtract(const Duration(days: 60)),
+          endDate: DateTime.now(),
           size: 20,
         ),
       ),
     );
   }
 
-  Color _getAccuracyColor(double accuracy) {
-    if (accuracy >= 0.8) return Colors.green.shade400;
-    if (accuracy >= 0.5) return Colors.orange.shade400;
-    return Colors.red.shade400;
-  }
+  // ── Performance Trend Chart ──
 
-  Widget _buildMetricsGrid(BuildContext context, HistoryStats stats) {
-    return GridView.count(
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.5,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      children: [
-        _MetricCard(
-          title: 'Win Rate',
-          value: '${(stats.globalAccuracy * 100).toStringAsFixed(1)}%',
-          subtitle: 'Global Accuracy',
-          icon: Icons.track_changes,
-          color: Colors.green.shade400,
+  Widget _buildPerformanceChart(BuildContext context, HistoryStats stats) {
+    final theme = Theme.of(context);
+    if (stats.movingAverageScoring.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return SizedBox(
+      height: 250,
+      child: Card(
+        elevation: 0,
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: LineChart(
+            LineChartData(
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                horizontalInterval: 0.25,
+                getDrawingHorizontalLine: (value) => FlLine(
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+                  strokeWidth: 1,
+                ),
+              ),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 40,
+                    interval: 0.25,
+                    getTitlesWidget: (value, _) => Text(
+                      '${(value * 100).toInt()}%',
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                ),
+                bottomTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              ),
+              borderData: FlBorderData(show: false),
+              minY: 0,
+              maxY: 1,
+              lineBarsData: [
+                LineChartBarData(
+                  spots: List.generate(
+                    stats.movingAverageScoring.length,
+                    (i) => FlSpot(i.toDouble(), stats.movingAverageScoring[i]),
+                  ),
+                  isCurved: true,
+                  color: theme.colorScheme.primary,
+                  barWidth: 3,
+                  isStrokeCapRound: true,
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  ),
+                ),
+              ],
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipItems: (spots) => spots
+                      .map((spot) => LineTooltipItem(
+                            '${(spot.y * 100).toInt()}%',
+                            TextStyle(
+                                color: theme.colorScheme.onSurface,
+                                fontWeight: FontWeight.bold),
+                          ))
+                      .toList(),
+                ),
+              ),
+            ),
+          ),
         ),
-        _MetricCard(
-          title: 'Pace',
-          value: '${stats.averageTimePerQuestion.toStringAsFixed(1)}s',
-          subtitle: 'Avg time per question',
-          icon: Icons.timer,
-          color: Colors.blue.shade400,
-        ),
-        _MetricCard(
-          title: 'Volume',
-          value: '${stats.totalQuestionsAnswered}',
-          subtitle: 'Questions cleared',
-          icon: Icons.library_add_check,
-          color: Colors.purple.shade400,
-        ),
-        _MetricCard(
-          title: 'Peak',
-          value: '${(stats.bestScorePercentage * 100).toStringAsFixed(0)}%',
-          subtitle: 'Highest score',
-          icon: Icons.emoji_events,
-          color: Colors.orange.shade400,
-        ),
-      ],
+      ),
     );
   }
 
-  LineChartData _buildChartData(ThemeData theme, HistoryStats stats) {
-    List<FlSpot> spots = [];
-    for (int i = 0; i < stats.movingAverageScoring.length; i++) {
-      spots.add(FlSpot(i.toDouble(), stats.movingAverageScoring[i] * 100));
+  // ── Chronotype Chart ──
+
+  Widget _buildChronotypeChart(BuildContext context, HistoryStats stats) {
+    final theme = Theme.of(context);
+    final hours = stats.chronotypeAccuracy.keys.toList()..sort();
+
+    if (hours.isEmpty) return const SizedBox.shrink();
+
+    // Find best hour
+    int bestHour = hours.first;
+    double bestAcc = 0;
+    for (final h in hours) {
+      if (stats.chronotypeAccuracy[h]! > bestAcc) {
+        bestAcc = stats.chronotypeAccuracy[h]!;
+        bestHour = h;
+      }
     }
 
-    return LineChartData(
-      lineTouchData: LineTouchData(
-        enabled: true,
-        touchTooltipData: LineTouchTooltipData(
-          getTooltipItems: (touchedSpots) {
-            return touchedSpots.map((spot) {
-              return LineTooltipItem(
-                '${spot.y.toStringAsFixed(1)}%',
-                TextStyle(
-                  color: theme.colorScheme.onPrimary,
-                  fontWeight: FontWeight.bold,
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: theme.textTheme.bodyMedium,
+                children: [
+                  const TextSpan(text: 'You perform best around '),
+                  TextSpan(
+                    text: '$bestHour:00',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary),
+                  ),
+                  TextSpan(
+                    text:
+                        ' with ${(bestAcc * 100).toStringAsFixed(0)}% accuracy',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 120,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: 1,
+                  barTouchData: const BarTouchData(enabled: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (val, _) {
+                          final h = val.toInt();
+                          if (hours.contains(h)) {
+                            return Text('${h}h',
+                                style: const TextStyle(fontSize: 9));
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                    ),
+                  ),
+                  gridData: const FlGridData(show: false),
+                  borderData: FlBorderData(show: false),
+                  barGroups: hours
+                      .map((h) => BarChartGroupData(
+                            x: h,
+                            barRods: [
+                              BarChartRodData(
+                                toY: stats.chronotypeAccuracy[h] ?? 0,
+                                width: 12,
+                                borderRadius: BorderRadius.circular(4),
+                                color: h == bestHour
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.primary
+                                        .withValues(alpha: 0.3),
+                              ),
+                            ],
+                          ))
+                      .toList(),
                 ),
-              );
-            }).toList();
-          },
+              ),
+            ),
+          ],
         ),
       ),
-      gridData: FlGridData(
-        show: true,
-        drawVerticalLine: false,
-        horizontalInterval: 25,
-        getDrawingHorizontalLine: (value) {
-          return FlLine(
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
-            strokeWidth: 1,
-            dashArray: [5, 5],
-          );
-        },
-      ),
-      titlesData: FlTitlesData(
-        show: true,
-        rightTitles:
-            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        bottomTitles:
-            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        leftTitles: AxisTitles(
-          sideTitles: SideTitles(
-            showTitles: true,
-            interval: 25,
-            getTitlesWidget: (value, meta) {
-              return Text('${value.toInt()}%',
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant));
-            },
-            reservedSize: 42,
+    );
+  }
+
+  // ── Category Breakdown ──
+
+  Widget _buildCategoryBreakdown(BuildContext context, HistoryStats stats) {
+    final theme = Theme.of(context);
+    final entries = stats.categoryBreakdown.entries.toList()
+      ..sort((a, b) => b.value.quizCount.compareTo(a.value.quizCount));
+
+    return Column(
+      children: entries.map((entry) {
+        final cat = entry.value;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(cat.categoryName,
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${cat.quizCount} quizzes • ${(cat.accuracy * 100).toStringAsFixed(0)}% accuracy',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        value: cat.accuracy,
+                        strokeWidth: 4,
+                        color: theme.colorScheme.primary,
+                        backgroundColor:
+                            theme.colorScheme.primary.withValues(alpha: 0.1),
+                      ),
+                      Text('${(cat.accuracy * 100).toInt()}',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.onSurface)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
-      borderData: FlBorderData(show: false),
-      minX: 0,
-      maxX: (spots.length - 1 <= 0 ? 1 : spots.length - 1).toDouble(),
-      minY: 0,
-      maxY: 100,
-      lineBarsData: [
-        LineChartBarData(
-          spots: spots.isEmpty ? const [FlSpot(0, 0)] : spots,
-          isCurved: true,
-          color: theme.colorScheme.primary,
-          barWidth: 4,
-          isStrokeCapRound: true,
-          dotData: const FlDotData(show: false),
-          belowBarData: BarAreaData(
-            show: true,
-            color: theme.colorScheme.primary.withValues(alpha: 0.2),
-          ),
-        ),
-      ],
+        );
+      }).toList(),
     );
   }
 }
 
-class _MetricCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
+// ── Widget Components ──
 
-  const _MetricCard({
-    required this.title,
-    required this.value,
-    required this.subtitle,
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(title,
+        style: Theme.of(context)
+            .textTheme
+            .titleLarge
+            ?.copyWith(fontWeight: FontWeight.bold));
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+  final bool isText;
+  final String? hint;
+
+  const _StatTile({
     required this.icon,
+    required this.label,
+    required this.value,
     required this.color,
+    this.isText = false,
+    this.hint,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(title,
-                  style: theme.textTheme.labelMedium
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-              Icon(icon, size: 20, color: color),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(value,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface)),
-              Text(subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant, fontSize: 10)),
-            ],
-          ),
-        ],
+    final screenWidth = MediaQuery.of(context).size.width;
+    final tileWidth = (screenWidth - 32 - 10) / 2; // 2 columns
+
+    return SizedBox(
+      width: tileWidth,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.12)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 18, color: color),
+                const Spacer(),
+                if (hint != null)
+                  GestureDetector(
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: Text(label),
+                          content: Text(hint!),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              child: const Text('Got it'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    child: Icon(Icons.info_outline_rounded,
+                        size: 14,
+                        color: theme.colorScheme.onSurfaceVariant
+                            .withValues(alpha: 0.4)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: isText ? 14 : 22,
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
+          ],
+        ),
       ),
     );
   }

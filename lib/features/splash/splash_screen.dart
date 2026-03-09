@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -32,9 +33,12 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    Future.delayed(const Duration(seconds: 2), () {
+    Future.delayed(const Duration(seconds: 2), () async {
+      if (!mounted) return;
+      final prefs = await SharedPreferences.getInstance();
+      final onboardingDone = prefs.getBool('onboarding_complete') ?? false;
       if (mounted) {
-        context.goNamed('home');
+        context.goNamed(onboardingDone ? 'home' : 'onboarding');
       }
     });
   }
@@ -56,7 +60,7 @@ class _SplashScreenState extends State<SplashScreen>
           child: SizedBox.expand(
             child: Image.asset(
               'assets/images/home-screen.png',
-              fit: BoxFit.cover,
+              fit: BoxFit.contain,
             ),
           ),
         ),

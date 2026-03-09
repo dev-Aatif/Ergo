@@ -17,3 +17,16 @@ final subjectsProvider =
     return Subject.fromMap(maps[i]);
   });
 });
+
+final questionCountProvider =
+    FutureProvider.family<int, String>((ref, subjectId) async {
+  final dbService = ref.watch(databaseServiceProvider);
+  final db = dbService.db;
+
+  final result = await db.rawQuery(
+    'SELECT COUNT(*) as count FROM questions WHERE subject_id = ?',
+    [subjectId],
+  );
+
+  return result.first['count'] as int? ?? 0;
+});
