@@ -13,6 +13,7 @@ A scalable, offline-first mobile learning application built with Flutter.
 - **DLC Store** — Browse and download quiz packs from a growing catalog
 - **Analytics** — Activity heatmap, performance trends, category breakdowns, and streak tracking
 - **Audio Feedback** — Sound effects for correct/incorrect answers, streaks, and level-ups
+- **Onboarding** — Interactive first-launch walkthrough explaining quiz modes, analytics, and the DLC store
 - **Dark Mode** — Follows system theme automatically
 
 ## 📦 Tech Stack
@@ -42,6 +43,7 @@ lib/
 │   ├── category/       # Subject listing
 │   ├── quiz/           # Quiz engine + game modes
 │   ├── history/        # Analytics dashboard
+│   ├── onboarding/     # First-launch walkthrough
 │   ├── settings/       # User preferences + About page
 │   ├── splash/         # Animated splash screen
 │   └── storefront/     # DLC store + download manager
