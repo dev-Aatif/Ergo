@@ -218,8 +218,8 @@ final historyProvider = FutureProvider<HistoryStats>((ref) async {
       final gap = attempt.date.difference(attempts[i - 1].date);
       sessionGaps.add(gap);
 
-      // Revenge: session within 60s of a poor score (<50%)
-      if (gap.inSeconds < 60) {
+      // Revenge: session within 3 minutes of a poor score (<50%)
+      if (gap.inSeconds < 180) {
         final prevRatio = attempts[i - 1].totalQuestions > 0
             ? attempts[i - 1].score / attempts[i - 1].totalQuestions
             : 0.0;
@@ -236,10 +236,7 @@ final historyProvider = FutureProvider<HistoryStats>((ref) async {
       prior7Total += attempt.totalQuestions;
     }
 
-    // Abandonment: score is 0 and answered very few
-    if (attempt.score == 0 && attempt.totalQuestions <= 2) {
-      earlyQuits++;
-    }
+    // Abandonment: tracked via answer_log below
   }
 
   // Best streak calculation
@@ -311,7 +308,7 @@ final historyProvider = FutureProvider<HistoryStats>((ref) async {
       categoryName: categoryNames[catId] ?? catId,
       quizCount: catCorrect[catId]!.length,
       accuracy: total > 0 ? correct / total : 0.0,
-      avgTime: total > 0 ? time / total : 0.0,
+      avgTime: total > 0 ? time.toDouble() / total : 0.0,
     );
   }
 
@@ -323,45 +320,108 @@ final historyProvider = FutureProvider<HistoryStats>((ref) async {
   double clutchAccuracy = 0;
   double tiltFactor = 0;
 
+  // Build category filter clause for Tier 2 queries
+  // When a category is selected, filter answer_log via attempt IDs
+  final attemptIds = attempts.map((a) => a.id).toList();
+  final String categoryJoin;
+  final List<Object?> categoryArgs;
+  if (selectedCategory != null && attemptIds.isNotEmpty) {
+    categoryJoin = 'INNER JOIN quiz_attempts qa ON a.attempt_id = qa.id WHERE qa.category_id = ?';
+    categoryArgs = [selectedCategory];
+  } else {
+    categoryJoin = '';
+    categoryArgs = [];
+  }
+
   try {
     // Time-to-correct vs time-to-incorrect
-    final correctTimeResult = await db.rawQuery(
-        'SELECT AVG(time_ms) as avg_ms FROM answer_log WHERE is_correct = 1');
-    final incorrectTimeResult = await db.rawQuery(
-        'SELECT AVG(time_ms) as avg_ms FROM answer_log WHERE is_correct = 0');
+    final correctTimeResult = selectedCategory != null
+        ? await db.rawQuery(
+            'SELECT AVG(a.time_ms) as avg_ms FROM answer_log a $categoryJoin AND a.is_correct = 1',
+            categoryArgs)
+        : await db.rawQuery(
+            'SELECT AVG(time_ms) as avg_ms FROM answer_log WHERE is_correct = 1');
+    final incorrectTimeResult = selectedCategory != null
+        ? await db.rawQuery(
+            'SELECT AVG(a.time_ms) as avg_ms FROM answer_log a $categoryJoin AND a.is_correct = 0',
+            categoryArgs)
+        : await db.rawQuery(
+            'SELECT AVG(time_ms) as avg_ms FROM answer_log WHERE is_correct = 0');
     avgTimeCorrectMs =
         (correctTimeResult.first['avg_ms'] as num?)?.toDouble() ?? 0;
     avgTimeIncorrectMs =
         (incorrectTimeResult.first['avg_ms'] as num?)?.toDouble() ?? 0;
 
-    // Fatigue index: accuracy on first 5 Qs vs last 5 Qs
-    final earlyResult = await db.rawQuery('''
-      SELECT AVG(CAST(is_correct AS REAL)) as acc 
-      FROM answer_log WHERE question_index < 5
-    ''');
-    final lateResult = await db.rawQuery('''
-      SELECT AVG(CAST(is_correct AS REAL)) as acc 
-      FROM answer_log WHERE question_index >= 15
-    ''');
-    final earlyAcc = (earlyResult.first['acc'] as num?)?.toDouble() ?? 0;
-    final lateAcc = (lateResult.first['acc'] as num?)?.toDouble() ?? 0;
+    // Fatigue index: accuracy on first 25% vs last 25% of questions per attempt
+    final fatigueResult = selectedCategory != null
+        ? await db.rawQuery('''
+          SELECT a.attempt_id, a.question_index, a.is_correct, b.max_idx
+          FROM answer_log a
+          INNER JOIN (
+            SELECT attempt_id, MAX(question_index) as max_idx
+            FROM answer_log GROUP BY attempt_id
+          ) b ON a.attempt_id = b.attempt_id
+          $categoryJoin
+        ''', categoryArgs)
+        : await db.rawQuery('''
+          SELECT a.attempt_id, a.question_index, a.is_correct, b.max_idx
+          FROM answer_log a
+          INNER JOIN (
+            SELECT attempt_id, MAX(question_index) as max_idx
+            FROM answer_log GROUP BY attempt_id
+          ) b ON a.attempt_id = b.attempt_id
+        ''');
+
+    double earlyCorrect = 0, earlyTotal = 0;
+    double lateCorrect = 0, lateTotal = 0;
+    for (final row in fatigueResult) {
+      final idx = (row['question_index'] as int);
+      final maxIdx = (row['max_idx'] as int);
+      final isCorrect = (row['is_correct'] as int) == 1;
+      // First 25% of questions
+      if (idx <= maxIdx * 0.25) {
+        earlyTotal++;
+        if (isCorrect) earlyCorrect++;
+      }
+      // Last 25% of questions
+      if (idx >= maxIdx * 0.75) {
+        lateTotal++;
+        if (isCorrect) lateCorrect++;
+      }
+    }
+    final earlyAcc = earlyTotal > 0 ? earlyCorrect / earlyTotal : 0.0;
+    final lateAcc = lateTotal > 0 ? lateCorrect / lateTotal : 0.0;
     fatigueIndex = earlyAcc - lateAcc; // positive = degradation
 
     // Clutch: accuracy on the max question_index per attempt
-    final clutchResult = await db.rawQuery('''
-      SELECT AVG(CAST(a.is_correct AS REAL)) as acc
-      FROM answer_log a
-      INNER JOIN (
-        SELECT attempt_id, MAX(question_index) as max_idx
-        FROM answer_log GROUP BY attempt_id
-      ) b ON a.attempt_id = b.attempt_id AND a.question_index = b.max_idx
-    ''');
+    final clutchResult = selectedCategory != null
+        ? await db.rawQuery('''
+          SELECT AVG(CAST(a.is_correct AS REAL)) as acc
+          FROM answer_log a
+          INNER JOIN (
+            SELECT attempt_id, MAX(question_index) as max_idx
+            FROM answer_log GROUP BY attempt_id
+          ) b ON a.attempt_id = b.attempt_id AND a.question_index = b.max_idx
+          $categoryJoin
+        ''', categoryArgs)
+        : await db.rawQuery('''
+          SELECT AVG(CAST(a.is_correct AS REAL)) as acc
+          FROM answer_log a
+          INNER JOIN (
+            SELECT attempt_id, MAX(question_index) as max_idx
+            FROM answer_log GROUP BY attempt_id
+          ) b ON a.attempt_id = b.attempt_id AND a.question_index = b.max_idx
+        ''');
     clutchAccuracy = (clutchResult.first['acc'] as num?)?.toDouble() ?? 0;
 
     // Tilt factor: P(wrong after 2+ consecutive wrong)
-    final allAnswers = await db.query('answer_log',
-        columns: ['attempt_id', 'question_index', 'is_correct'],
-        orderBy: 'attempt_id, question_index');
+    final allAnswers = selectedCategory != null
+        ? await db.rawQuery(
+            'SELECT a.attempt_id, a.question_index, a.is_correct FROM answer_log a $categoryJoin ORDER BY a.attempt_id, a.question_index',
+            categoryArgs)
+        : await db.query('answer_log',
+            columns: ['attempt_id', 'question_index', 'is_correct'],
+            orderBy: 'attempt_id, question_index');
 
     int tiltOpportunities = 0;
     int tiltWrong = 0;
@@ -389,6 +449,26 @@ final historyProvider = FutureProvider<HistoryStats>((ref) async {
       }
     }
     tiltFactor = tiltOpportunities > 0 ? tiltWrong / tiltOpportunities : 0;
+
+    // Abandonment rate: compare answer_log count per attempt vs totalQuestions
+    final answerCountResult = selectedCategory != null
+        ? await db.rawQuery(
+            'SELECT a.attempt_id, COUNT(*) as answered FROM answer_log a $categoryJoin GROUP BY a.attempt_id',
+            categoryArgs)
+        : await db.rawQuery(
+            'SELECT attempt_id, COUNT(*) as answered FROM answer_log GROUP BY attempt_id');
+    final answerCounts = <String, int>{};
+    for (final row in answerCountResult) {
+      answerCounts[row['attempt_id'] as String] = row['answered'] as int;
+    }
+    for (final attempt in attempts) {
+      final answered = answerCounts[attempt.id] ?? 0;
+      // If user answered less than half the questions, count as early quit
+      if (attempt.totalQuestions > 0 &&
+          answered < attempt.totalQuestions * 0.5) {
+        earlyQuits++;
+      }
+    }
   } catch (_) {
     // answer_log table might not have data yet
   }
